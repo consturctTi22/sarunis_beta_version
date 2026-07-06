@@ -75,10 +75,10 @@
                                         <th>Jam Pelajaran</th>
                                         <th>Hari</th>
                                         <th>Jam</th>
-                                        <th>Kelas</th>
+                                        <th>Kelas (Jadwal)</th>
                                         <th>Deskripsi</th>
                                         <th>Guru Mapel</th>
-                                        <th>Kelas Terkait</th>
+                                        <th>Kelas Terkait (Kurikulum)</th>
                                         <th>Total Siswa Diajar</th>
                                         <th>Jumlah Jadwal</th>
                                         <th>Status</th>
@@ -168,13 +168,14 @@
                                 <input class="form-control" id="subject-lesson-hours" name="lesson_hours" type="number" min="1" max="20" placeholder="Contoh: 3">
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="subject-school-class-id">Kelas</label>
+                                <label class="form-label fw-semibold" for="subject-school-class-id">Kelas (Jadwal Tetap)</label>
                                 <select class="form-select" id="subject-school-class-id" name="school_class_id">
                                     <option value="">Pilih kelas</option>
                                     @foreach ($classOptions as $classOption)
                                         <option value="{{ $classOption['id'] }}">{{ $classOption['name'] }}</option>
                                     @endforeach
                                 </select>
+                                <small class="text-secondary d-block mt-1" style="font-size: 0.75rem;">Tempat jadwal tetap mapel dilaksanakan.</small>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label fw-semibold" for="subject-day-of-week">Hari</label>
@@ -224,11 +225,11 @@
                                 </div>
                             </div>
                             <div class="col-12">
-                                <label class="form-label fw-semibold" for="subject-class-search">Kelas Terkait</label>
+                                <label class="form-label fw-semibold" for="subject-class-search">Kelas Terkait (Kurikulum)</label>
                                 <div class="portal-directory-picker">
                                     <div class="portal-directory-picker__toolbar">
                                         <input class="form-control" id="subject-class-search" type="search" placeholder="Cari kelas yang sudah diinput..." data-subject-class-search>
-                                        <small>Pilih dari data kelas yang sudah ada untuk menentukan kelas yang memakai mapel ini.</small>
+                                        <small>Pilih kelas yang mempelajari mata pelajaran ini (relasi kurikulum).</small>
                                     </div>
                                     <div class="portal-directory-picker__list">
                                         @forelse ($classOptions as $classOption)
@@ -553,17 +554,19 @@
             }
 
             exportAllButton?.addEventListener('click', function () {
-                exportRows(rows, 'data-mapel-semua.csv');
+                window.location.href = '/admin/export/mapel/xls';
             });
 
             sectionExportButtons.forEach(function (button) {
                 button.addEventListener('click', function () {
                     const key = button.dataset.directoryExportSection;
-                    const sectionRows = rows.filter(function (row) {
-                        return row.dataset.sectionKey === key;
-                    });
-
-                    exportRows(sectionRows, 'data-mapel-' + key + '.csv');
+                    const section = directory.querySelector('[data-section-key="' + key + '"]');
+                    const usage = section ? section.dataset.usage : '';
+                    if (usage) {
+                        window.location.href = '/admin/export/mapel/xls?usage=' + encodeURIComponent(usage);
+                    } else {
+                        window.location.href = '/admin/export/mapel/xls';
+                    }
                 });
             });
 

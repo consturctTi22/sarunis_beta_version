@@ -84,6 +84,7 @@ Route::prefix('admin')->middleware('role:admin')->group(function () {
     Route::get('/semester-lock', [SemesterLockController::class, 'status']);
     Route::post('/semester-lock', [SemesterLockController::class, 'lock']);
     Route::delete('/semester-lock', [SemesterLockController::class, 'unlock']);
+    Route::post('pengguna/migrasi-profil', [UserManagementController::class, 'migrateProfiles']);
     Route::apiResource('pengguna', UserManagementController::class)->parameters(['pengguna' => 'pengguna']);
     Route::apiResource('setting', AppSettingController::class)->parameters(['setting' => 'setting']);
     Route::apiResource('catatan', StudentNoteController::class)->parameters(['catatan' => 'catatanSiswa']);

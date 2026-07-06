@@ -26,12 +26,11 @@ class AuthRecoveryController extends Controller
         $this->authRecoveryService->sendCode($payload['email'], $payload['portal']);
 
         return redirect()
-            ->route('auth.page.verify-code', [
+            ->route('auth.page.verify-email', [
                 'portal' => $payload['portal'],
                 'email' => $payload['email'],
-                'sent' => 1,
             ])
-            ->with('status', 'Kode verifikasi sudah dikirim.');
+            ->with('status', 'Tautan pengaturan ulang kata sandi telah dikirim ke email Anda.');
     }
 
     public function verifyCode(Request $request): RedirectResponse

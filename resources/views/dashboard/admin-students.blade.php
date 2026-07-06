@@ -247,7 +247,15 @@
                                     </div>
                                     <div class="portal-student-form__field portal-student-form__field--span-4">
                                         <label class="form-label fw-semibold" for="student-religion">Agama</label>
-                                        <input class="form-control" id="student-religion" name="detail_siswa[religion]" type="text">
+                                        <select class="form-select" id="student-religion" name="detail_siswa[religion]">
+                                            <option value="">Pilih agama</option>
+                                            <option value="Islam">Islam</option>
+                                            <option value="Kristen">Kristen</option>
+                                            <option value="Katolik">Katolik</option>
+                                            <option value="Hindu">Hindu</option>
+                                            <option value="Buddha">Buddha</option>
+                                            <option value="Khonghucu">Khonghucu</option>
+                                        </select>
                                     </div>
                                     <div class="portal-student-form__field portal-student-form__field--span-4">
                                         <label class="form-label fw-semibold" for="student-phone">No. HP Siswa</label>
@@ -822,17 +830,19 @@
             }
 
             exportAllButton?.addEventListener('click', function () {
-                window.location.href = '/admin/export/siswa';
+                window.location.href = '/admin/export/siswa/xls';
             });
 
             sectionExportButtons.forEach(function (button) {
                 button.addEventListener('click', function () {
                     const key = button.dataset.directoryExportSection;
-                    const sectionRows = rows.filter(function (row) {
-                        return row.dataset.sectionKey === key;
-                    });
-
-                    exportRows(sectionRows, 'data-siswa-' + key + '.csv');
+                    const section = directory.querySelector('[data-section-key="' + key + '"]');
+                    const classId = section ? section.dataset.classId : '';
+                    if (classId) {
+                        window.location.href = '/admin/export/siswa/xls?school_class_id=' + classId;
+                    } else {
+                        window.location.href = '/admin/export/siswa/xls';
+                    }
                 });
             });
 

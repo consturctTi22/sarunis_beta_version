@@ -40,10 +40,16 @@ CACHE_STORE=database
 QUEUE_CONNECTION=database
 FILESYSTEM_DISK=public
 
+INITIAL_ADMIN_EMAIL=admin@example.com
+INITIAL_ADMIN_PASSWORD=Password123
+INITIAL_ADMIN_NAME="Admin Sekolah"
+
 MAIL_MAILER=log
 MAIL_FROM_ADDRESS=hello@example.com
 MAIL_FROM_NAME="${APP_NAME}"
 ```
+
+`INITIAL_ADMIN_EMAIL` dan `INITIAL_ADMIN_PASSWORD` dipakai untuk membuat akun admin pertama saat deploy. Setelah akun berhasil dibuat, hapus variable password atau biarkan tanpa `INITIAL_ADMIN_SYNC_PASSWORD` agar password tidak ditimpa pada deploy berikutnya.
 
 Generate key lokal tanpa mengubah `.env`:
 

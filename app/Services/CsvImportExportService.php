@@ -33,7 +33,7 @@ class CsvImportExportService
 
         [$baseFilename, $title, $headers, $rows] = match ($dataset) {
             'siswa' => ['data-siswa', 'Data Siswa', $this->studentHeaders(), $this->studentRows($filters)],
-            'guru' => ['data-guru', 'Data Guru', $this->teacherHeaders(), $this->teacherRows()],
+            'guru' => ['data-guru', 'Data Guru', $this->teacherHeaders(), $this->teacherRows($filters)],
             'kelas' => ['data-kelas', 'Data Kelas', $this->classHeaders(), $this->classRows($filters)],
             'mapel' => ['data-mapel', 'Data Mata Pelajaran', $this->subjectHeaders(), $this->subjectRows($filters)],
             'absensi' => ['data-absensi', 'Data Absensi Gabungan', $this->attendanceHeaders(), $this->attendanceRows($filters)],
@@ -179,6 +179,7 @@ class CsvImportExportService
 
         return response()->streamDownload(function () use ($headers): void {
             $handle = fopen('php://output', 'w');
+            fwrite($handle, "\xEF\xBB\xBFsep=,\n");
             fputcsv($handle, $headers);
             fclose($handle);
         }, $filename, [
@@ -229,7 +230,15 @@ class CsvImportExportService
         $header = fgetcsv($handle);
         abort_if($header === false, 422, 'File import harus memiliki header CSV.');
 
-        $keys = array_map(fn (string $value): string => str($value)->trim()->lower()->replace(' ', '_')->toString(), $header);
+        if (count($header) === 1 && str_starts_with(strtolower($header[0] ?? ''), 'sep=')) {
+            $header = fgetcsv($handle);
+            abort_if($header === false, 422, 'File import harus memiliki header CSV.');
+        }
+
+        $keys = array_map(function (string $value): string {
+            $cleaned = str_replace("\xEF\xBB\xBF", '', $value);
+            return str($cleaned)->trim()->lower()->replace(' ', '_')->toString();
+        }, $header);
         $rows = [];
         $rowNumber = 1;
 
@@ -324,11 +333,19 @@ class CsvImportExportService
             ->all();
     }
 
-    protected function teacherRows(): array
+    protected function teacherRows(array $filters = []): array
     {
-        return Teacher::query()
+        $category = $filters['category'] ?? null;
+
+        $query = Teacher::query()
             ->orderBy('name')
-            ->get()
+            ->get();
+
+        if ($category !== null && $category !== '') {
+            $query = $query->filter(fn (Teacher $teacher) => $teacher->roleMeta()['key'] === $category);
+        }
+
+        return $query
             ->map(fn (Teacher $teacher): array => [
                 $teacher->id,
                 $teacher->nip,
@@ -343,17 +360,20 @@ class CsvImportExportService
             ->all();
     }
 
-    /**
-     * @param array<string, mixed> $filters
-     */
     protected function classRows(array $filters = []): array
     {
+        $level = $filters['level'] ?? null;
+
         return SchoolClass::query()
             ->with('homeroomTeacher')
             ->withCount('students')
             ->when(
                 $this->filterInt($filters, 'school_class_id'),
                 fn ($query, int $schoolClassId) => $query->where('id', $schoolClassId),
+            )
+            ->when(
+                $level !== null && $level !== '',
+                fn ($query) => $query->where('level', $level),
             )
             ->orderBy('name')
             ->get()
@@ -369,11 +389,10 @@ class CsvImportExportService
             ->all();
     }
 
-    /**
-     * @param array<string, mixed> $filters
-     */
     protected function subjectRows(array $filters = []): array
     {
+        $usage = $filters['usage'] ?? null;
+
         return Subject::query()
             ->with(['teachers', 'schoolClass', 'schoolClasses'])
             ->when(
@@ -385,6 +404,12 @@ class CsvImportExportService
                     $q->where('school_class_id', $schoolClassId)
                       ->orWhereHas('schoolClasses', fn ($classQuery) => $classQuery->where('school_classes.id', $schoolClassId));
                 });
+            })
+            ->when($usage === 'dipakai', function ($query): void {
+                $query->has('teachingAssignments');
+            })
+            ->when($usage === 'belum-dipakai', function ($query): void {
+                $query->doesntHave('teachingAssignments');
             })
             ->orderBy('name')
             ->get()
@@ -540,7 +565,7 @@ class CsvImportExportService
     {
         $parts = [$baseFilename];
 
-        foreach (['type', 'subject_id', 'school_class_id', 'attendance_date', 'date_from', 'date_to'] as $key) {
+        foreach (['type', 'subject_id', 'school_class_id', 'attendance_date', 'date_from', 'date_to', 'category', 'level', 'usage'] as $key) {
             $value = $filters[$key] ?? null;
 
             if ($value !== null && $value !== '') {

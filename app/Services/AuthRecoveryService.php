@@ -19,7 +19,7 @@ class AuthRecoveryService
     public function sendCode(string $email, string $portal): void
     {
         $user = $this->userForPortal($email, $portal);
-        $code = (string) random_int(10000, 99999);
+        $token = Str::random(64);
 
         AuthVerificationCode::query()
             ->where('email', $user->email)
@@ -31,15 +31,23 @@ class AuthRecoveryService
             'email' => $user->email,
             'portal' => $portal,
             'purpose' => 'password_reset',
-            'code_hash' => Hash::make($code),
+            'code_hash' => Hash::make($token),
+            'reset_token_hash' => Hash::make($token),
+            'verified_at' => now(),
             'expires_at' => now()->addMinutes(15),
+        ]);
+
+        $resetUrl = route('auth.page.reset-password', [
+            'portal' => $portal,
+            'email' => $user->email,
+            'token' => $token,
         ]);
 
         Mail::send(
             'emails.auth-recovery-code',
-            ['code' => $code, 'user' => $user],
+            ['resetUrl' => $resetUrl, 'user' => $user],
             static function ($message) use ($user): void {
-                $message->to($user->email)->subject('Kode Verifikasi Sarunis');
+                $message->to($user->email)->subject('Tautan Pengaturan Ulang Kata Sandi');
             },
         );
     }
@@ -63,14 +71,7 @@ class AuthRecoveryService
             ]);
         }
 
-        $token = Str::random(64);
-
-        $verification->forceFill([
-            'verified_at' => now(),
-            'reset_token_hash' => Hash::make($token),
-        ])->save();
-
-        return $token;
+        return $code;
     }
 
     public function resetPassword(string $email, string $portal, string $token, string $password): void

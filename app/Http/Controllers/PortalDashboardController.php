@@ -703,12 +703,19 @@ class PortalDashboardController extends Controller
                 ->all();
 
             $teacherOptions = Teacher::query()
+                ->with('homeroomClasses:id,name,homeroom_teacher_id')
                 ->orderBy('name')
                 ->get()
-                ->map(fn(Teacher $teacher): array => [
-                    'id' => $teacher->id,
-                    'name' => $teacher->name,
-                ])
+                ->map(function (Teacher $teacher): array {
+                    $homeroomClass = $teacher->homeroomClasses->first();
+
+                    return [
+                        'id' => $teacher->id,
+                        'name' => $teacher->name,
+                        'homeroom_class_id' => $homeroomClass?->id,
+                        'homeroom_class_name' => $homeroomClass?->name,
+                    ];
+                })
                 ->values()
                 ->all();
 

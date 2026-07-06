@@ -43,8 +43,23 @@ class UpsertSchoolClassRequest extends FormRequest
             ],
             'level' => ['required', 'string', 'max:30', 'regex:/^[A-Z0-9 .-]+$/'],
             'academic_year' => ['required', 'string', 'regex:/^\d{4}\/\d{4}$/'],
-            'homeroom_teacher_id' => ['nullable', 'integer', Rule::exists('teachers', 'id')],
+            'homeroom_teacher_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('teachers', 'id'),
+                Rule::unique('school_classes', 'homeroom_teacher_id')->ignore($schoolClass?->id),
+            ],
             'description' => ['nullable', 'string', 'max:1000'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'homeroom_teacher_id.unique' => 'Guru ini sudah menjadi wali kelas di kelas lain.',
         ];
     }
 }

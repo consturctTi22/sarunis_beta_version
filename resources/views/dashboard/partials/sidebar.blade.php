@@ -8,12 +8,45 @@
     $userRoles = collect(auth()->user()?->roles ?? [])
         ->map(fn (string $role): string => $roleLabels[$role] ?? str_replace('_', ' ', $role))
         ->values();
+    $sectionLabels = [
+        'Menu' => 'Akademik',
+        'Menu Utama' => 'Akademik',
+        'Utama' => 'Akademik',
+        'Admin' => 'Administrasi',
+        'Lainnya' => 'Sistem',
+        'Informasi' => 'Informasi',
+        'Guru Mapel' => 'Akademik',
+        'Wali Kelas' => 'Akademik',
+        'Orang Tua' => 'Informasi',
+        'Siswa' => 'Akademik',
+    ];
 @endphp
+
+<header class="portal-mobile-shellbar" data-mobile-shellbar>
+    <button class="portal-mobile-menu-button" type="button" aria-label="Buka menu" aria-expanded="false" data-sidebar-open>
+        <span aria-hidden="true">☰</span>
+    </button>
+    <div class="portal-mobile-shellbar__brand">
+        <strong>{{ config('app.name', 'Sarunis') }}</strong>
+        <span>{{ $userRoles->implode(' + ') ?: 'Portal Sekolah' }}</span>
+    </div>
+</header>
+
+<div class="portal-sidebar-backdrop" data-sidebar-close></div>
 
 <aside class="portal-dashboard-sidebar" aria-label="Navigasi dashboard">
     <div class="portal-dashboard-sidebar__rail"></div>
 
     <div class="portal-dashboard-sidebar__panel">
+        <div class="portal-dashboard-sidebar__tools">
+            <button class="portal-sidebar-icon-button portal-sidebar-close" type="button" aria-label="Tutup menu" data-sidebar-close>
+                <span aria-hidden="true">×</span>
+            </button>
+            <button class="portal-sidebar-icon-button portal-sidebar-collapse" type="button" aria-label="Perkecil sidebar" aria-pressed="false" data-sidebar-collapse>
+                <span aria-hidden="true">‹</span>
+            </button>
+        </div>
+
         <div class="portal-dashboard-brand">
             <span class="portal-dashboard-brand__mark">S</span>
             <span class="portal-dashboard-brand__copy">
@@ -32,9 +65,9 @@
             @foreach ($menuSections as $section)
                 @if (! empty($section['items']))
                     <div class="portal-dashboard-menu-group">
-                        <div class="portal-dashboard-menu-section">{{ $section['title'] }}</div>
+                        <div class="portal-dashboard-menu-section">{{ $sectionLabels[$section['title']] ?? $section['title'] }}</div>
 
-                        <nav class="portal-dashboard-menu-list" aria-label="{{ $section['title'] }}">
+                        <nav class="portal-dashboard-menu-list" aria-label="{{ $sectionLabels[$section['title']] ?? $section['title'] }}">
                             @foreach ($section['items'] as $item)
                                 <a class="portal-dashboard-menu-item {{ $item['active'] ? 'is-active' : '' }}" href="{{ $item['href'] }}" title="{{ $item['label'] }}" @if (($interactiveSidebar ?? false) && str_starts_with($item['href'], '#')) data-nav-link @endif>
                                     <span class="portal-dashboard-menu-item__icon" aria-hidden="true">

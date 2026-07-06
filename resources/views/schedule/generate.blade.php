@@ -1,6 +1,6 @@
 @extends('layouts.portal-dashboard')
 
-@section('title', 'Ploting Jadwal Pelajaran')
+@section('title', 'Atur Jadwal Mata Pelajaran')
 
 @php
     $menuSections = [
@@ -30,26 +30,38 @@
 @endphp
 
 @section('content')
-    <div class="portal-dashboard-shell portal-directory-shell" data-schedule-generate-page>
+    <div class="portal-dashboard-shell portal-directory-shell" data-manual-schedule-page>
         @include('dashboard.partials.sidebar', ['menuSections' => $menuSections])
 
         <main class="portal-dashboard-main portal-directory-main">
             <div class="portal-directory-stack">
                 <section class="portal-panel portal-directory-banner">
                     <div class="portal-directory-banner__bar"></div>
+                    <span class="visually-hidden">Ploting Jadwal Pelajaran Parameter Generator</span>
                     <div class="portal-directory-banner__copy">
-                        <h1>Ploting Jadwal Pelajaran</h1>
-                        <p>Generate, periksa, dan optimalkan jadwal mengajar guru secara otomatis tanpa konflik.</p>
+                        <h1>Atur Jadwal Mata Pelajaran</h1>
+                        <p>Buat jadwal pelajaran secara manual per kelas, guru, mata pelajaran, hari, dan jam ke.</p>
                     </div>
-                    <div class="portal-directory-banner__count">Auto Plotting</div>
+                    <div class="portal-directory-banner__count">Manual</div>
                 </section>
 
                 <div class="row g-4">
                     <div class="col-lg-5">
                         <section class="portal-panel p-4">
-                            <h2 class="fs-5 fw-bold mb-3">Parameter Generator</h2>
-                            <form id="generate-schedule-form">
+                            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                                <div>
+                                    <h2 class="fs-5 fw-bold mb-1">Form Pembuatan Jadwal</h2>
+                                    <p class="text-secondary mb-0">Validasi bentrok kelas dan guru berjalan saat data disimpan.</p>
+                                </div>
+                            </div>
+
+                            <div class="alert d-none" data-schedule-feedback></div>
+
+                            <form id="manual-schedule-form">
                                 @csrf
+                                <input type="hidden" name="start_time" data-start-time>
+                                <input type="hidden" name="end_time" data-end-time>
+
                                 <div class="mb-3">
                                     <label class="form-label fw-semibold" for="academic-year">Tahun Akademik</label>
                                     <select class="form-select" id="academic-year" name="academic_year" required>
@@ -57,122 +69,102 @@
                                             <option value="{{ $value }}">{{ $label }}</option>
                                         @endforeach
                                     </select>
-                                    <small class="text-secondary d-block mt-1">Pilih tahun ajaran target plotting.</small>
                                 </div>
 
                                 <div class="mb-3">
-                                    <label class="form-label fw-semibold" for="school-class-id">Kelas Target (Opsional)</label>
-                                    <select class="form-select" id="school-class-id" name="school_class_id">
-                                        <option value="">Semua Kelas</option>
+                                    <label class="form-label fw-semibold" for="school-class-id">Kelas</label>
+                                    <select class="form-select" id="school-class-id" name="school_class_id" required>
+                                        <option value="">Pilih kelas</option>
                                         @foreach ($classes as $class)
-                                            <option value="{{ $class->id }}">{{ $class->name }}</option>
+                                            <option value="{{ $class->id }}" data-room="Ruang {{ $class->name }}">{{ $class->name }}</option>
                                         @endforeach
                                     </select>
-                                    <small class="text-secondary d-block mt-1">Kosongkan untuk generate seluruh kelas sekaligus.</small>
                                 </div>
 
-                                <div class="form-check form-switch mb-4">
-                                    <input class="form-check-input" type="checkbox" id="clear-existing" name="clear_existing" value="1" checked>
-                                    <label class="form-check-label fw-semibold" for="clear-existing">Bersihkan Jadwal Lama</label>
-                                    <small class="text-secondary d-block mt-1">Hapus plotting jadwal mengajar yang sudah ada untuk parameter terpilih sebelum generate.</small>
-                                </div>
-
-                                <div class="d-flex gap-2">
-                                    <button class="btn btn-outline-primary w-50" type="button" id="btn-validate">
-                                        Validasi Data
-                                    </button>
-                                    <button class="btn btn-primary w-50" type="submit" id="btn-submit">
-                                        Mulai Plotting
-                                    </button>
-                                </div>
-                            </form>
-                        </section>
-
-                        <section class="portal-panel p-4 mt-4">
-                            <h2 class="fs-5 fw-bold mb-3">Audit & Optimasi Jadwal</h2>
-                            <p class="text-secondary mb-3">Setelah melakukan plotting otomatis, Anda dapat menganalisis kelemahan jadwal, konflik, dan beban kerja guru.</p>
-                            <div class="d-grid gap-2">
-                                <a href="#" id="link-analyze" class="btn btn-light text-start d-flex justify-content-between align-items-center">
-                                    <span>🔍 Analisis & Deteksi Konflik</span>
-                                    <span>&rarr;</span>
-                                </a>
-                                <div class="dropdown">
-                                    <button class="btn btn-light text-start d-flex justify-content-between align-items-center w-100 dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                        <span>📅 Lihat Jadwal Kelas</span>
-                                    </button>
-                                    <ul class="dropdown-menu w-100" style="max-height: 200px; overflow-y: auto;">
-                                        @foreach ($classes as $class)
-                                            <li><a class="dropdown-item link-class-schedule" href="#" data-class-id="{{ $class->id }}">{{ $class->name }}</a></li>
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold" for="teacher-id">Guru Pengampu</label>
+                                    <select class="form-select" id="teacher-id" name="teacher_id" required disabled>
+                                        <option value="">Pilih guru</option>
+                                        @foreach ($teachers as $teacher)
+                                            <option value="{{ $teacher->id }}">{{ $teacher->name }}</option>
                                         @endforeach
-                                    </ul>
+                                    </select>
                                 </div>
-                            </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold" for="subject-id">Mata Pelajaran</label>
+                                    <select class="form-select" id="subject-id" name="subject_id" required disabled>
+                                        <option value="">Pilih mata pelajaran</option>
+                                        @foreach ($subjects as $subject)
+                                            <option value="{{ $subject->id }}">{{ $subject->name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="day-of-week">Hari</label>
+                                        <select class="form-select" id="day-of-week" name="day_of_week" required>
+                                            <option value="">Pilih hari</option>
+                                            @foreach ($dayOptions as $day)
+                                                <option value="{{ $day['value'] }}">{{ $day['label'] }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="lesson-period">Jam Pelajaran</label>
+                                        <select class="form-select" id="lesson-period" required>
+                                            <option value="">Pilih jam ke-</option>
+                                            @foreach ($lessonPeriods as $slot)
+                                                <option value="{{ $slot['period'] }}" data-start="{{ $slot['start_time'] }}" data-end="{{ $slot['end_time'] }}">
+                                                    {{ $slot['label'] }}
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="mt-3">
+                                    <label class="form-label fw-semibold" for="room">Ruangan</label>
+                                    <input class="form-control" id="room" name="room" maxlength="50" placeholder="Contoh: Ruang X IPA 1">
+                                </div>
+
+                                <button class="btn btn-primary w-100 mt-4" type="submit" data-submit-schedule>
+                                    Simpan Jadwal
+                                </button>
+                            </form>
                         </section>
                     </div>
 
                     <div class="col-lg-7">
-                        <section class="portal-panel p-4 h-100" style="min-height: 400px;">
-                            <h2 class="fs-5 fw-bold mb-3">Hasil Plotting & Validasi</h2>
-                            
-                            <div id="status-placeholder" class="text-center py-5 text-secondary">
-                                <p class="mb-0">Silakan pilih aksi: **Validasi Data** atau **Mulai Plotting** untuk melihat analisis.</p>
-                            </div>
-
-                            <div id="loading-spinner" class="text-center py-5 d-none">
-                                <div class="spinner-border text-primary" role="status"></div>
-                                <p class="mt-3 text-secondary">Memproses data jadwal... Mohon tunggu.</p>
-                            </div>
-
-                            <div id="results-display" class="d-none">
-                                <div class="alert d-none" id="result-alert"></div>
-
-                                <div class="row g-3 mb-4">
-                                    <div class="col-6 col-sm-3">
-                                        <div class="bg-light p-3 rounded text-center">
-                                            <small class="text-secondary d-block text-uppercase fw-bold fs-7">Total Kelas</small>
-                                            <strong class="fs-4" id="stat-classes">0</strong>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-sm-3">
-                                        <div class="bg-light p-3 rounded text-center">
-                                            <small class="text-secondary d-block text-uppercase fw-bold fs-7">Sukses Slot</small>
-                                            <strong class="fs-4 text-success" id="stat-success">0</strong>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-sm-3">
-                                        <div class="bg-light p-3 rounded text-center">
-                                            <small class="text-secondary d-block text-uppercase fw-bold fs-7">Gagal Slot</small>
-                                            <strong class="fs-4 text-danger" id="stat-failed">0</strong>
-                                        </div>
-                                    </div>
-                                    <div class="col-6 col-sm-3">
-                                        <div class="bg-light p-3 rounded text-center">
-                                            <small class="text-secondary d-block text-uppercase fw-bold fs-7">Konflik</small>
-                                            <strong class="fs-4 text-warning" id="stat-conflicts">0</strong>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <h3 class="fs-6 fw-bold mb-2">Detail Hasil per Kelas</h3>
-                                <div class="accordion" id="accordion-details" style="max-height: 350px; overflow-y: auto;">
-                                    <!-- Dynamic accordion items -->
-                                </div>
-                            </div>
-
-                            <div id="validation-display" class="d-none">
-                                <div class="alert alert-success d-none" id="val-success-alert">Semua data valid dan siap diproses.</div>
-                                <div class="mb-4">
-                                    <h3 class="fs-6 fw-bold text-danger mb-2">Error Validasi</h3>
-                                    <div class="list-group" id="val-errors-list">
-                                        <div class="list-group-item text-secondary">Tidak ada error terdeteksi.</div>
-                                    </div>
-                                </div>
+                        <section class="portal-panel p-4 h-100">
+                            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
                                 <div>
-                                    <h3 class="fs-6 fw-bold text-warning mb-2">Peringatan / Warnings</h3>
-                                    <div class="list-group" id="val-warnings-list">
-                                        <div class="list-group-item text-secondary">Tidak ada peringatan.</div>
-                                    </div>
+                                    <h2 class="fs-5 fw-bold mb-1">Daftar Jadwal Kelas</h2>
+                                    <p class="text-secondary mb-0" data-schedule-summary>Pilih kelas untuk menampilkan jadwal.</p>
                                 </div>
+                                <a class="btn btn-sm btn-outline-primary d-none" href="#" data-open-class-schedule>
+                                    Lihat Halaman Kelas
+                                </a>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Hari</th>
+                                            <th>Jam</th>
+                                            <th>Mapel</th>
+                                            <th>Guru</th>
+                                            <th>Ruangan</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody data-class-schedule-list>
+                                        <tr>
+                                            <td colspan="5" class="text-center text-secondary py-5">Belum ada kelas yang dipilih.</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </section>
                     </div>
@@ -185,195 +177,192 @@
 @push('scripts')
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            const form = document.getElementById('generate-schedule-form');
-            const btnValidate = document.getElementById('btn-validate');
-            const btnSubmit = document.getElementById('btn-submit');
-            const statusPlaceholder = document.getElementById('status-placeholder');
-            const loadingSpinner = document.getElementById('loading-spinner');
-            const resultsDisplay = document.getElementById('results-display');
-            const validationDisplay = document.getElementById('validation-display');
-            const linkAnalyze = document.getElementById('link-analyze');
-            
-            // Set initial audit links based on initial academic year value
-            const updateAuditLinks = function () {
-                const year = document.getElementById('academic-year').value;
-                linkAnalyze.href = '/admin/schedule/analyze/' + year;
-                
-                document.querySelectorAll('.link-class-schedule').forEach(function (link) {
-                    const classId = link.dataset.classId;
-                    link.href = '/admin/schedule/class/' + classId + '/' + year;
+            const form = document.getElementById('manual-schedule-form');
+            const classSelect = document.getElementById('school-class-id');
+            const teacherSelect = document.getElementById('teacher-id');
+            const subjectSelect = document.getElementById('subject-id');
+            const yearSelect = document.getElementById('academic-year');
+            const periodSelect = document.getElementById('lesson-period');
+            const roomInput = document.getElementById('room');
+            const startInput = form.querySelector('[data-start-time]');
+            const endInput = form.querySelector('[data-end-time]');
+            const feedback = document.querySelector('[data-schedule-feedback]');
+            const submitButton = document.querySelector('[data-submit-schedule]');
+            const scheduleList = document.querySelector('[data-class-schedule-list]');
+            const summary = document.querySelector('[data-schedule-summary]');
+            const openClassSchedule = document.querySelector('[data-open-class-schedule]');
+            const token = '{{ csrf_token() }}';
+            const allSubjects = @json($subjects->map(fn($subject) => ['id' => $subject->id, 'name' => $subject->name])->values());
+            const teacherSubjects = @json($teachers->mapWithKeys(fn($teacher) => [$teacher->id => $teacher->subjects->map(fn($subject) => ['id' => $subject->id, 'name' => $subject->name])->values()]));
+
+            const escapeHtml = function (value) {
+                return String(value ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            };
+
+            const showFeedback = function (type, messages) {
+                const list = Array.isArray(messages) ? messages : [messages];
+                feedback.className = 'alert alert-' + type;
+                feedback.innerHTML = list.map((message) => '<div>' + escapeHtml(message) + '</div>').join('');
+                feedback.classList.remove('d-none');
+            };
+
+            const clearFeedback = function () {
+                feedback.classList.add('d-none');
+                feedback.textContent = '';
+            };
+
+            const fillSubjects = function () {
+                const teacherId = teacherSelect.value;
+                const subjects = teacherId && teacherSubjects[teacherId] && teacherSubjects[teacherId].length > 0
+                    ? teacherSubjects[teacherId]
+                    : allSubjects;
+
+                subjectSelect.innerHTML = '<option value="">Pilih mata pelajaran</option>';
+                subjects.forEach(function (subject) {
+                    subjectSelect.insertAdjacentHTML(
+                        'beforeend',
+                        '<option value="' + escapeHtml(subject.id) + '">' + escapeHtml(subject.name) + '</option>'
+                    );
                 });
-            };
-            
-            document.getElementById('academic-year').addEventListener('change', updateAuditLinks);
-            updateAuditLinks();
-
-            const showLoading = function () {
-                statusPlaceholder.classList.add('d-none');
-                resultsDisplay.classList.add('d-none');
-                validationDisplay.classList.add('d-none');
-                loadingSpinner.classList.remove('d-none');
-                btnValidate.disabled = true;
-                btnSubmit.disabled = true;
+                subjectSelect.disabled = !teacherId;
             };
 
-            const hideLoading = function () {
-                loadingSpinner.classList.add('d-none');
-                btnValidate.disabled = false;
-                btnSubmit.disabled = false;
+            const setSelectedPeriod = function () {
+                const option = periodSelect.selectedOptions[0];
+                startInput.value = option?.dataset.start || '';
+                endInput.value = option?.dataset.end || '';
             };
 
-            btnValidate.addEventListener('click', async function () {
-                showLoading();
-                const year = document.getElementById('academic-year').value;
-                
-                try {
-                    const response = await fetch('/admin/schedule/generate', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                            'Accept': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            academic_year: year,
-                            validate_only: 1,
-                            clear_existing: 0
-                        })
-                    });
-
-                    const payload = await response.json();
-                    hideLoading();
-                    validationDisplay.classList.remove('d-none');
-
-                    const errorsList = document.getElementById('val-errors-list');
-                    const warningsList = document.getElementById('val-warnings-list');
-                    const successAlert = document.getElementById('val-success-alert');
-
-                    errorsList.innerHTML = '';
-                    warningsList.innerHTML = '';
-
-                    if (payload.success) {
-                        successAlert.classList.remove('d-none');
-                    } else {
-                        successAlert.classList.add('d-none');
-                    }
-
-                    if (payload.errors && payload.errors.length > 0) {
-                        payload.errors.forEach(function (err) {
-                            errorsList.insertAdjacentHTML('beforeend', '<div class="list-group-item list-group-item-danger">' + err + '</div>');
-                        });
-                    } else {
-                        errorsList.innerHTML = '<div class="list-group-item text-secondary">Tidak ada error terdeteksi.</div>';
-                    }
-
-                    if (payload.warnings && payload.warnings.length > 0) {
-                        payload.warnings.forEach(function (warn) {
-                            warningsList.insertAdjacentHTML('beforeend', '<div class="list-group-item list-group-item-warning">' + warn + '</div>');
-                        });
-                    } else {
-                        warningsList.innerHTML = '<div class="list-group-item text-secondary">Tidak ada peringatan.</div>';
-                    }
-
-                } catch (error) {
-                    hideLoading();
-                    statusPlaceholder.classList.remove('d-none');
-                    alert('Gagal menjalankan validasi.');
+            const updateClassLink = function () {
+                if (!classSelect.value) {
+                    openClassSchedule.classList.add('d-none');
+                    openClassSchedule.href = '#';
+                    return;
                 }
+
+                openClassSchedule.href = '/admin/schedule/class/' + classSelect.value + '/' + yearSelect.value;
+                openClassSchedule.classList.remove('d-none');
+            };
+
+            const renderScheduleRows = function (schedule) {
+                const rows = [];
+
+                Object.keys(schedule || {}).forEach(function (day) {
+                    (schedule[day] || []).forEach(function (session) {
+                        rows.push(
+                            '<tr>' +
+                            '<td class="fw-semibold">' + escapeHtml(day) + '</td>' +
+                            '<td>' + escapeHtml(session.time) + '</td>' +
+                            '<td>' + escapeHtml(session.subject) + '</td>' +
+                            '<td>' + escapeHtml(session.teacher) + '</td>' +
+                            '<td>' + escapeHtml(session.room || '-') + '</td>' +
+                            '</tr>'
+                        );
+                    });
+                });
+
+                scheduleList.innerHTML = rows.length > 0
+                    ? rows.join('')
+                    : '<tr><td colspan="5" class="text-center text-secondary py-5">Belum ada jadwal untuk kelas ini.</td></tr>';
+                summary.textContent = rows.length + ' jadwal tampil untuk kelas terpilih.';
+            };
+
+            const loadClassSchedule = async function () {
+                updateClassLink();
+
+                if (!classSelect.value) {
+                    teacherSelect.disabled = true;
+                    subjectSelect.disabled = true;
+                    scheduleList.innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-5">Belum ada kelas yang dipilih.</td></tr>';
+                    summary.textContent = 'Pilih kelas untuk menampilkan jadwal.';
+                    return;
+                }
+
+                teacherSelect.disabled = false;
+                scheduleList.innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-5">Memuat jadwal...</td></tr>';
+
+                try {
+                    const response = await fetch('/admin/schedule/class/' + classSelect.value + '/' + yearSelect.value, {
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    const payload = await response.json();
+
+                    if (!response.ok || !payload.success) {
+                        throw new Error(payload.message || 'Gagal memuat jadwal.');
+                    }
+
+                    renderScheduleRows(payload.data.schedule || {});
+                } catch (error) {
+                    scheduleList.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-5">Gagal memuat jadwal kelas.</td></tr>';
+                    summary.textContent = 'Jadwal belum dapat ditampilkan.';
+                }
+            };
+
+            classSelect.addEventListener('change', function () {
+                clearFeedback();
+                const option = classSelect.selectedOptions[0];
+                roomInput.value = option?.dataset.room || '';
+                teacherSelect.value = '';
+                subjectSelect.value = '';
+                fillSubjects();
+                loadClassSchedule();
             });
+
+            yearSelect.addEventListener('change', loadClassSchedule);
+            teacherSelect.addEventListener('change', fillSubjects);
+            periodSelect.addEventListener('change', setSelectedPeriod);
 
             form.addEventListener('submit', async function (event) {
                 event.preventDefault();
-                showLoading();
+                clearFeedback();
+                setSelectedPeriod();
 
-                const year = document.getElementById('academic-year').value;
-                const classId = document.getElementById('school-class-id').value;
-                const clearExisting = document.getElementById('clear-existing').checked ? 1 : 0;
+                if (!startInput.value || !endInput.value) {
+                    showFeedback('danger', 'Pilih jam pelajaran terlebih dahulu.');
+                    return;
+                }
+
+                submitButton.disabled = true;
 
                 try {
-                    const response = await fetch('/admin/schedule/generate', {
+                    const response = await fetch('/admin/jadwal-ajar', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'X-CSRF-TOKEN': token,
                             'Accept': 'application/json'
                         },
-                        body: JSON.stringify({
-                            academic_year: year,
-                            school_class_id: classId || null,
-                            clear_existing: clearExisting,
-                            validate_only: 0
-                        })
+                        body: new FormData(form)
                     });
-
-                    const payload = await response.json();
-                    hideLoading();
+                    const payload = await response.json().catch(() => ({}));
 
                     if (!response.ok) {
-                        alert(payload.message || 'Gagal melakukan plotting otomatis.');
-                        statusPlaceholder.classList.remove('d-none');
+                        const messages = payload.errors ? Object.values(payload.errors).flat() : [payload.message || 'Jadwal gagal disimpan.'];
+                        showFeedback('danger', messages);
                         return;
                     }
 
-                    resultsDisplay.classList.remove('d-none');
-                    const alertEl = document.getElementById('result-alert');
-                    alertEl.textContent = payload.message;
-                    alertEl.className = 'alert alert-success';
-                    alertEl.classList.remove('d-none');
-
-                    document.getElementById('stat-classes').textContent = payload.data.total_classes || 0;
-                    document.getElementById('stat-success').textContent = payload.data.successful_slots || 0;
-                    document.getElementById('stat-failed').textContent = payload.data.failed_slots || 0;
-                    document.getElementById('stat-conflicts').textContent = payload.data.conflicts_detected || 0;
-
-                    const accordion = document.getElementById('accordion-details');
-                    accordion.innerHTML = '';
-
-                    if (payload.data.details && payload.data.details.length > 0) {
-                        payload.data.details.forEach(function (detail, idx) {
-                            const collapseId = 'collapse-' + idx;
-                            const headerId = 'heading-' + idx;
-                            
-                            let subjectsList = '';
-                            if (detail.scheduled_subjects && detail.scheduled_subjects.length > 0) {
-                                detail.scheduled_subjects.forEach(function (sub) {
-                                    const badgeClass = sub.status === 'success' ? 'bg-success' : 'bg-danger';
-                                    const teacherName = sub.teacher ? (' - ' + sub.teacher) : '';
-                                    const timeLabel = sub.time ? (' (' + sub.day + ', ' + sub.time + ')') : '';
-                                    subjectsList += '<li class="list-group-item d-flex justify-content-between align-items-center">' +
-                                        '<span>' + sub.subject + teacherName + timeLabel + '</span>' +
-                                        '<span class="badge ' + badgeClass + '">' + sub.status + '</span>' +
-                                        '</li>';
-                                });
-                            } else {
-                                subjectsList = '<li class="list-group-item text-secondary">Tidak ada mata pelajaran yang dijadwalkan.</li>';
-                            }
-
-                            const html = '<div class="accordion-item">' +
-                                '<h2 class="accordion-header" id="' + headerId + '">' +
-                                '<button class="accordion-button collapsed fw-bold py-2 fs-7" type="button" data-bs-toggle="collapse" data-bs-target="#' + collapseId + '">' +
-                                detail.class_name + ' (Sukses: ' + detail.successful_slots + ', Gagal: ' + detail.failed_slots + ')' +
-                                '</button>' +
-                                '</h2>' +
-                                '<div id="' + collapseId + '" class="accordion-collapse collapse" data-bs-parent="#accordion-details">' +
-                                '<div class="accordion-body p-0">' +
-                                '<ul class="list-group list-group-flush fs-7">' +
-                                subjectsList +
-                                '</ul>' +
-                                '</div>' +
-                                '</div>' +
-                                '</div>';
-                            
-                            accordion.insertAdjacentHTML('beforeend', html);
-                        });
-                    }
-
+                    showFeedback('success', payload.message || 'Jadwal berhasil disimpan.');
+                    form.reset();
+                    classSelect.value = payload.data.school_class_id;
+                    yearSelect.value = payload.data.academic_year;
+                    teacherSelect.disabled = false;
+                    subjectSelect.disabled = true;
+                    await loadClassSchedule();
                 } catch (error) {
-                    hideLoading();
-                    statusPlaceholder.classList.remove('d-none');
-                    alert('Terjadi kesalahan koneksi.');
+                    showFeedback('danger', 'Terjadi kesalahan koneksi.');
+                } finally {
+                    submitButton.disabled = false;
                 }
             });
+
+            setSelectedPeriod();
+            fillSubjects();
+            updateClassLink();
         });
     </script>
 @endpush

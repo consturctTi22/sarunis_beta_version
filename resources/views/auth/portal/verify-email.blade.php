@@ -13,6 +13,12 @@
         </div>
     @endif
 
+    @if (session('status'))
+        <div class="alert alert-success portal-auth-alert mb-3" role="alert">
+            {{ session('status') }}
+        </div>
+    @endif
+
     <form class="portal-auth-form" method="POST" action="{{ route('auth.recovery.send-code') }}">
         @csrf
         <input type="hidden" name="portal" value="{{ $portalKey }}">

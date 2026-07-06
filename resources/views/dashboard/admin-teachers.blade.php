@@ -203,7 +203,15 @@
                                     </div>
                                     <div class="portal-student-form__field portal-student-form__field--span-4">
                                         <label class="form-label fw-semibold" for="teacher-religion">Agama</label>
-                                        <input class="form-control" id="teacher-religion" name="religion" type="text">
+                                        <select class="form-select" id="teacher-religion" name="religion">
+                                            <option value="">Pilih agama</option>
+                                            <option value="Islam">Islam</option>
+                                            <option value="Kristen">Kristen</option>
+                                            <option value="Katolik">Katolik</option>
+                                            <option value="Hindu">Hindu</option>
+                                            <option value="Buddha">Buddha</option>
+                                            <option value="Khonghucu">Khonghucu</option>
+                                        </select>
                                     </div>
                                     <div class="portal-student-form__field portal-student-form__field--span-4">
                                         <label class="form-label fw-semibold" for="teacher-phone">No. HP</label>
@@ -662,17 +670,19 @@
             }
 
             exportAllButton?.addEventListener('click', function () {
-                window.location.href = '/admin/export/guru';
+                window.location.href = '/admin/export/guru/xls';
             });
 
             sectionExportButtons.forEach(function (button) {
                 button.addEventListener('click', function () {
                     const key = button.dataset.directoryExportSection;
-                    const sectionRows = rows.filter(function (row) {
-                        return row.dataset.sectionKey === key;
-                    });
-
-                    exportRows(sectionRows, 'data-guru-' + key + '.csv');
+                    const section = directory.querySelector('[data-section-key="' + key + '"]');
+                    const category = section ? section.dataset.category : '';
+                    if (category) {
+                        window.location.href = '/admin/export/guru/xls?category=' + category;
+                    } else {
+                        window.location.href = '/admin/export/guru/xls';
+                    }
                 });
             });
 

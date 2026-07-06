@@ -28,7 +28,7 @@ class TeachingAssignmentController extends Controller
         $teachingAssignment = $this->teachingAssignmentService->create($request->validated());
 
         return response()->json([
-            'message' => 'Jadwal ajar berhasil dibuat.',
+            'message' => 'Jadwal berhasil disimpan.',
             'data' => $teachingAssignment,
         ], 201);
     }

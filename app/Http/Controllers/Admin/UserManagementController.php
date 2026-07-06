@@ -8,8 +8,11 @@ use App\Models\Student;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Services\UserRoleService;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\View\View;
@@ -33,6 +36,10 @@ class UserManagementController extends Controller
             'roleOptions' => UserRole::values(),
             'teacherOptions' => Teacher::query()->with('user')->orderBy('name')->get(),
             'studentOptions' => Student::query()->with('user')->orderBy('name')->get(),
+            'migrationCounts' => [
+                'teachers' => Teacher::query()->whereNull('user_id')->count(),
+                'students' => Student::query()->whereNull('user_id')->count(),
+            ],
         ]);
     }
 
@@ -134,6 +141,50 @@ class UserManagementController extends Controller
         ]);
     }
 
+    public function migrateProfiles(Request $request): JsonResponse
+    {
+        $payload = $request->validate([
+            'source' => ['required', 'string', Rule::in(['all', 'teachers', 'students'])],
+            'email_verified' => ['nullable', 'boolean'],
+        ]);
+
+        $source = $payload['source'];
+        $emailVerified = (bool) ($payload['email_verified'] ?? true);
+
+        $result = DB::transaction(function () use ($source, $emailVerified): array {
+            $createdTeachers = $source !== 'students'
+                ? $this->migrateTeachers($emailVerified)
+                : [];
+            $createdStudents = $source !== 'teachers'
+                ? $this->migrateStudents($emailVerified)
+                : [];
+
+            return [
+                'teachers_created' => count($createdTeachers),
+                'students_created' => count($createdStudents),
+                'total_created' => count($createdTeachers) + count($createdStudents),
+                'teachers' => $createdTeachers,
+                'students' => $createdStudents,
+            ];
+        });
+
+        return response()->json([
+            'message' => $result['total_created'] > 0
+                ? "{$result['total_created']} akun pengguna berhasil dibuat dari data profil."
+                : 'Tidak ada data guru atau siswa yang perlu dimigrasi.',
+            'data' => [
+                ...$result,
+                'users' => User::query()
+                    ->with(['teacherProfile', 'studentProfile'])
+                    ->orderByDesc('created_at')
+                    ->limit($result['total_created'])
+                    ->get()
+                    ->reverse()
+                    ->values(),
+            ],
+        ]);
+    }
+
     /**
      * @return array<int, array{title:string,items:array<int, array{label:string,icon:string,href:string,active:bool}>}>
      */
@@ -210,5 +261,132 @@ class UserManagementController extends Controller
         return User::query()
             ->whereJsonContains('roles', UserRole::ADMIN->value)
             ->count();
+    }
+
+    /**
+     * @return array<int, array{name:string,email:string,password:string}>
+     */
+    protected function migrateTeachers(bool $emailVerified): array
+    {
+        return Teacher::query()
+            ->with(['subjects', 'teachingAssignments', 'homeroomClasses'])
+            ->whereNull('user_id')
+            ->orderBy('name')
+            ->get()
+            ->map(function (Teacher $teacher) use ($emailVerified): array {
+                $password = $this->defaultTeacherPassword($teacher);
+                $user = User::query()->create([
+                    'name' => $teacher->name,
+                    'email' => $this->uniqueGeneratedEmail('guru', $teacher),
+                    'password' => $password,
+                    'roles' => [],
+                ]);
+                $user->forceFill([
+                    'email_verified_at' => $emailVerified ? now() : null,
+                ])->save();
+
+                $teacher->forceFill(['user_id' => $user->id])->save();
+                $teacher->setRelation('user', $user);
+                $this->userRoleService->syncTeacherRoles($teacher);
+
+                return [
+                    'name' => $teacher->name,
+                    'email' => $user->email,
+                    'password' => $password,
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{name:string,email:string,password:string}>
+     */
+    protected function migrateStudents(bool $emailVerified): array
+    {
+        return Student::query()
+            ->whereNull('user_id')
+            ->orderBy('name')
+            ->get()
+            ->map(function (Student $student) use ($emailVerified): array {
+                $password = $this->defaultStudentPassword($student);
+                $user = User::query()->create([
+                    'name' => $student->name,
+                    'email' => $this->uniqueGeneratedEmail('siswa', $student),
+                    'password' => $password,
+                    'roles' => [UserRole::SISWA->value],
+                ]);
+                $user->forceFill([
+                    'email_verified_at' => $emailVerified ? now() : null,
+                ])->save();
+
+                $student->forceFill(['user_id' => $user->id])->save();
+                $student->setRelation('user', $user);
+                $this->userRoleService->syncStudentRole($student);
+
+                return [
+                    'name' => $student->name,
+                    'email' => $user->email,
+                    'password' => $password,
+                ];
+            })
+            ->all();
+    }
+
+    protected function uniqueGeneratedEmail(string $prefix, Model $profile): string
+    {
+        $baseIdentifier = collect([
+            $profile->getAttribute('nip'),
+            $profile->getAttribute('nisn'),
+            $profile->getAttribute('nik'),
+            $profile->getAttribute('name'),
+            $profile->getKey(),
+        ])
+            ->filter(static fn(mixed $value): bool => filled($value))
+            ->first();
+
+        $local = Str::of($prefix . '.' . $baseIdentifier)
+            ->lower()
+            ->replaceMatches('/[^a-z0-9]+/', '.')
+            ->trim('.')
+            ->toString();
+
+        if ($local === '' || $local === $prefix) {
+            $local = "{$prefix}.{$profile->getKey()}";
+        }
+
+        $domain = $this->generatedEmailDomain();
+        $email = "{$local}@{$domain}";
+        $counter = 2;
+
+        while (User::query()->where('email', $email)->exists()) {
+            $email = "{$local}.{$counter}@{$domain}";
+            $counter++;
+        }
+
+        return $email;
+    }
+
+    protected function generatedEmailDomain(): string
+    {
+        $host = parse_url((string) config('app.url'), PHP_URL_HOST);
+
+        return filled($host) ? (string) $host : 'sarunis.local';
+    }
+
+    protected function defaultStudentPassword(Student $student): string
+    {
+        if ($student->birth_date !== null) {
+            return $student->birth_date->format('dmY');
+        }
+
+        return (string) ($student->nisn ?? $student->nik ?? ('Siswa' . $student->id));
+    }
+
+    protected function defaultTeacherPassword(Teacher $teacher): string
+    {
+        $identifier = (string) ($teacher->nip ?? $teacher->nik ?? $teacher->id);
+        $password = 'Guru' . preg_replace('/\D+/', '', $identifier);
+
+        return strlen($password) >= 8 ? $password : 'Guru' . str_pad((string) $teacher->id, 4, '0', STR_PAD_LEFT);
     }
 }

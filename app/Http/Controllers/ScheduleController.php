@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\SchoolClass;
+use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\TeachingAssignment;
 use App\Services\ScheduleDisplayService;
@@ -36,9 +37,28 @@ class ScheduleController extends Controller
     public function generatePage()
     {
         $academicYears = $this->getAvailableAcademicYears();
-        $classes = SchoolClass::all();
+        $classes = SchoolClass::query()->orderBy('name')->get();
+        $teachers = Teacher::query()
+            ->with('subjects:id,name')
+            ->orderBy('name')
+            ->get();
+        $subjects = Subject::query()->orderBy('name')->get();
+        $dayOptions = collect(range(0, 5))
+            ->map(fn(int $day): array => [
+                'value' => $day,
+                'label' => config("schedule.day_names.{$day}", 'Hari ' . ($day + 1)),
+            ])
+            ->all();
+        $lessonPeriods = $this->lessonPeriods();
 
-        return view('schedule.generate', compact('academicYears', 'classes'));
+        return view('schedule.generate', compact(
+            'academicYears',
+            'classes',
+            'teachers',
+            'subjects',
+            'dayOptions',
+            'lessonPeriods',
+        ));
     }
 
     /**
@@ -311,5 +331,33 @@ class ScheduleController extends Controller
         ksort($years);
 
         return $years;
+    }
+
+    /**
+     * @return array<int, array{period:int,start_time:string,end_time:string,label:string}>
+     */
+    private function lessonPeriods(): array
+    {
+        $startHour = (int) config('schedule.school_start_hour', 7);
+        $endHour = (int) config('schedule.school_end_hour', 15);
+        $duration = max(1, (int) config('schedule.lesson_duration', 45));
+        $startMinutes = $startHour * 60;
+        $endMinutes = $endHour * 60;
+        $periods = [];
+        $period = 1;
+
+        for ($cursor = $startMinutes; $cursor + $duration <= $endMinutes; $cursor += $duration) {
+            $start = sprintf('%02d:%02d', intdiv($cursor, 60), $cursor % 60);
+            $end = sprintf('%02d:%02d', intdiv($cursor + $duration, 60), ($cursor + $duration) % 60);
+            $periods[] = [
+                'period' => $period,
+                'start_time' => $start,
+                'end_time' => $end,
+                'label' => "Jam ke-{$period} ({$start} - {$end})",
+            ];
+            $period++;
+        }
+
+        return $periods;
     }
 }

@@ -33,7 +33,7 @@ class AuthRecoveryAndExtraModulesTest extends TestCase
         $this->post('/auth/verifikasi-email', [
             'portal' => 'admin',
             'email' => 'admin@sarunis.test',
-        ])->assertRedirect('/auth/verifikasi-kode?portal=admin&email=admin%40sarunis.test&sent=1');
+        ])->assertRedirect('/auth/verifikasi-email?portal=admin&email=admin%40sarunis.test');
 
         $this->assertDatabaseHas('auth_verification_codes', [
             'email' => 'admin@sarunis.test',
@@ -42,28 +42,21 @@ class AuthRecoveryAndExtraModulesTest extends TestCase
         ]);
 
         AuthVerificationCode::query()->where('email', 'admin@sarunis.test')->delete();
+        $token = 'valid-token';
         AuthVerificationCode::query()->create([
             'email' => 'admin@sarunis.test',
             'portal' => 'admin',
             'purpose' => 'password_reset',
-            'code_hash' => Hash::make('12345'),
+            'code_hash' => Hash::make($token),
+            'reset_token_hash' => Hash::make($token),
+            'verified_at' => now(),
             'expires_at' => now()->addMinutes(15),
         ]);
-
-        $verifyResponse = $this->post('/auth/verifikasi-kode', [
-            'portal' => 'admin',
-            'email' => 'admin@sarunis.test',
-            'code' => ['1', '2', '3', '4', '5'],
-        ])->assertRedirect();
-
-        $location = $verifyResponse->headers->get('Location');
-        $this->assertNotFalse($location);
-        parse_str((string) parse_url($location, PHP_URL_QUERY), $query);
 
         $this->post('/auth/lupa-kata-sandi', [
             'portal' => 'admin',
             'email' => 'admin@sarunis.test',
-            'token' => $query['token'],
+            'token' => $token,
             'password' => 'Passwordbaru1',
             'password_confirmation' => 'Passwordbaru1',
         ])->assertRedirect('/auth?portal=admin&email=admin%40sarunis.test&reset=success');
@@ -144,6 +137,44 @@ class AuthRecoveryAndExtraModulesTest extends TestCase
             'resolved_at' => now()->toDateString(),
         ])->assertOk()
             ->assertJsonPath('data.title', 'Pendampingan berjalan');
+    }
+
+    public function test_admin_can_migrate_students_and_teachers_to_users(): void
+    {
+        $admin = User::query()->where('email', 'admin@sarunis.test')->firstOrFail();
+        $student = Student::query()->whereNull('user_id')->firstOrFail();
+        $teacher = Teacher::query()->whereNull('user_id')->firstOrFail();
+
+        $response = $this->actingAs($admin)
+            ->postJson('/admin/pengguna/migrasi-profil', [
+                'source' => 'all',
+                'email_verified' => true,
+            ])
+            ->assertOk();
+
+        $this->assertGreaterThanOrEqual(1, $response->json('data.teachers_created'));
+        $this->assertGreaterThanOrEqual(1, $response->json('data.students_created'));
+
+        $student->refresh();
+        $teacher->refresh();
+
+        $this->assertNotNull($student->user_id);
+        $this->assertNotNull($teacher->user_id);
+        $this->assertTrue($student->user->hasRole('siswa'));
+        $this->assertStringStartsWith('siswa.', $student->user->email);
+        $this->assertStringStartsWith('guru.', $teacher->user->email);
+
+        if ($student->birth_date !== null) {
+            $this->assertTrue(Hash::check($student->birth_date->format('dmY'), $student->user->password));
+        }
+
+        $this->actingAs($admin)
+            ->postJson('/admin/pengguna/migrasi-profil', [
+                'source' => 'all',
+                'email_verified' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.total_created', 0);
     }
 
     public function test_admin_can_import_students_teachers_and_export_csv_datasets(): void

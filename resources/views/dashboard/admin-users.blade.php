@@ -41,6 +41,9 @@
                     <button class="portal-round-action" type="button" aria-label="Tambah pengguna" data-create data-bs-toggle="modal" data-bs-target="#crud-modal">
                         @include('dashboard.partials.icon', ['name' => 'plus'])
                     </button>
+                    <button class="btn btn-primary d-flex align-items-center gap-2" type="button" data-bs-toggle="modal" data-bs-target="#migration-modal">
+                        Migrasi Profil
+                    </button>
                 </section>
 
                 <div class="alert alert-success d-none" data-feedback></div>
@@ -164,6 +167,46 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="migration-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content portal-directory-modal">
+                <form data-migration-form>
+                    <div class="modal-header border-0 pb-0">
+                        <h2 class="modal-title fs-4 fw-bold">Migrasi Profil ke Pengguna</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-danger d-none" data-migration-errors></div>
+                        <div class="alert alert-light border">
+                            <div class="fw-semibold mb-1">Data belum punya akun</div>
+                            <div>{{ $migrationCounts['teachers'] }} guru dan {{ $migrationCounts['students'] }} siswa siap dimigrasi.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Sumber Data</label>
+                            <select class="form-select" name="source" required>
+                                <option value="all">Guru dan siswa</option>
+                                <option value="teachers">Guru saja</option>
+                                <option value="students">Siswa saja</option>
+                            </select>
+                        </div>
+                        <label class="form-check">
+                            <input class="form-check-input" type="checkbox" name="email_verified" value="1" checked>
+                            <span class="form-check-label">Langsung tandai email terverifikasi</span>
+                        </label>
+                        <div class="small text-secondary mt-3">
+                            Email dibuat otomatis dari identitas profil. Password default siswa memakai tanggal lahir format ddmmyyyy jika ada, sedangkan guru memakai format Guru + NIP/NIK.
+                        </div>
+                        <div class="mt-3 d-none" data-migration-result></div>
+                    </div>
+                    <div class="modal-footer border-0">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary" data-migration-submit>Mulai Migrasi</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
@@ -172,6 +215,11 @@
             const page = document.querySelector('[data-crud-page]');
             const form = document.querySelector('[data-crud-form]');
             const modal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('crud-modal'));
+            const migrationModal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('migration-modal'));
+            const migrationForm = document.querySelector('[data-migration-form]');
+            const migrationErrors = document.querySelector('[data-migration-errors]');
+            const migrationResult = document.querySelector('[data-migration-result]');
+            const migrationSubmit = document.querySelector('[data-migration-submit]');
             const errors = document.querySelector('[data-errors]');
             const feedback = document.querySelector('[data-feedback]');
             const search = document.querySelector('[data-search]');
@@ -280,6 +328,12 @@
                 errors.classList.remove('d-none');
             };
 
+            const showMigrationErrors = function (payload) {
+                const messages = payload?.errors ? Object.values(payload.errors).flat() : [payload?.message || 'Migrasi gagal.'];
+                migrationErrors.innerHTML = messages.map((message) => '<div>' + escapeHtml(message) + '</div>').join('');
+                migrationErrors.classList.remove('d-none');
+            };
+
             const resetForm = function () {
                 form.reset();
                 form.elements.id.value = '';
@@ -325,6 +379,55 @@
                     applyFilters();
                 } else {
                     showErrors(payload);
+                }
+            });
+
+            migrationForm.addEventListener('submit', async function (event) {
+                event.preventDefault();
+                migrationErrors.classList.add('d-none');
+                migrationResult.classList.add('d-none');
+                migrationSubmit.disabled = true;
+
+                const data = new FormData(migrationForm);
+                if (!data.get('email_verified')) data.set('email_verified', '0');
+
+                try {
+                    const response = await fetch(page.dataset.endpoint + '/migrasi-profil', {
+                        method: 'POST',
+                        headers: {'X-CSRF-TOKEN': token, 'Accept': 'application/json'},
+                        body: data,
+                    });
+                    const payload = await response.json().catch(() => ({}));
+
+                    if (!response.ok) {
+                        showMigrationErrors(payload);
+                        return;
+                    }
+
+                    (payload.data?.users || []).forEach(function (user) {
+                        if (document.querySelector('[data-row-id="' + user.id + '"]')) return;
+                        document.querySelector('tbody').insertAdjacentHTML('afterbegin', rowHtml(user));
+                        bindRowActions(document.querySelector('[data-row-id="' + user.id + '"]'));
+                    });
+
+                    const teacherRows = payload.data?.teachers || [];
+                    const studentRows = payload.data?.students || [];
+                    const credentialRows = teacherRows.concat(studentRows).slice(0, 10).map(function (item) {
+                        return '<tr><td>' + escapeHtml(item.name) + '</td><td>' + escapeHtml(item.email) + '</td><td>' + escapeHtml(item.password) + '</td></tr>';
+                    }).join('');
+
+                    migrationResult.className = 'alert alert-success';
+                    migrationResult.innerHTML = '<div class="fw-semibold mb-2">' + escapeHtml(payload.message || 'Migrasi selesai.') + '</div>' +
+                        (credentialRows
+                            ? '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Nama</th><th>Email</th><th>Password Awal</th></tr></thead><tbody>' + credentialRows + '</tbody></table></div>'
+                            : '<div>Semua data yang tersedia sudah memiliki akun.</div>');
+                    migrationResult.classList.remove('d-none');
+                    showFeedback(payload.message || 'Migrasi pengguna selesai.');
+                    applyFilters();
+                } catch (error) {
+                    showMigrationErrors({message: 'Terjadi kesalahan koneksi.'});
+                } finally {
+                    migrationSubmit.disabled = false;
                 }
             });
 

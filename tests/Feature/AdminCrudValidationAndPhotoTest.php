@@ -375,6 +375,63 @@ class AdminCrudValidationAndPhotoTest extends TestCase
         $this->assertContains('guru_mapel', $teacherUser->roles ?? []);
     }
 
+    public function test_homeroom_teacher_cannot_be_assigned_to_multiple_classes(): void
+    {
+        $admin = User::query()->where('email', 'admin@sarunis.test')->firstOrFail();
+        $this->actingAs($admin);
+
+        $teacherResponse = $this->postJson('/admin/guru', [
+            'nip' => '198900000088',
+            'name' => 'Guru Wali Tunggal',
+            'is_subject_teacher' => true,
+        ])->assertCreated();
+
+        $teacherId = $teacherResponse->json('data.id');
+
+        $classAResponse = $this->postJson('/admin/kelas', [
+            'name' => 'XII VALID A',
+            'level' => 'XII',
+            'academic_year' => '2025/2026',
+            'homeroom_teacher_id' => $teacherId,
+            'description' => 'Kelas wali pertama',
+        ])->assertCreated();
+
+        $this->postJson('/admin/kelas', [
+            'name' => 'XII VALID B',
+            'level' => 'XII',
+            'academic_year' => '2025/2026',
+            'homeroom_teacher_id' => $teacherId,
+            'description' => 'Kelas wali kedua',
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors(['homeroom_teacher_id']);
+
+        $classBResponse = $this->postJson('/admin/kelas', [
+            'name' => 'XII VALID C',
+            'level' => 'XII',
+            'academic_year' => '2025/2026',
+            'description' => 'Kelas tanpa wali',
+        ])->assertCreated();
+
+        $this->putJson("/admin/kelas/{$classBResponse->json('data.id')}/ploting", [
+            'homeroom_teacher_id' => $teacherId,
+            'student_ids' => [],
+            'subject_ids' => [],
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors(['homeroom_teacher_id']);
+
+        $this->putJson("/admin/kelas/{$classAResponse->json('data.id')}", [
+            'name' => 'XII VALID A',
+            'level' => 'XII',
+            'academic_year' => '2025/2026',
+            'homeroom_teacher_id' => $teacherId,
+            'description' => 'Kelas wali pertama tetap',
+        ])->assertOk();
+
+        $this->get('/admin/data-kelas')
+            ->assertOk()
+            ->assertSee('Guru yang sudah menjadi wali kelas tidak dapat dipilih untuk kelas lain.', false);
+    }
+
     public function test_admin_crud_validation_rejects_invalid_payloads(): void
     {
         $admin = User::query()->where('email', 'admin@sarunis.test')->firstOrFail();

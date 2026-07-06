@@ -165,9 +165,16 @@
                                 <select class="form-select" id="class-homeroom-teacher" name="homeroom_teacher_id">
                                     <option value="">Pilih wali kelas</option>
                                     @foreach ($teacherOptions as $teacherOption)
-                                        <option value="{{ $teacherOption['id'] }}">{{ $teacherOption['name'] }}</option>
+                                        <option
+                                            value="{{ $teacherOption['id'] }}"
+                                            data-homeroom-class-id="{{ $teacherOption['homeroom_class_id'] ?? '' }}"
+                                            data-homeroom-class-name="{{ $teacherOption['homeroom_class_name'] ?? '' }}"
+                                        >
+                                            {{ $teacherOption['name'] }}{{ ! empty($teacherOption['homeroom_class_name']) ? ' - Wali '.$teacherOption['homeroom_class_name'] : '' }}
+                                        </option>
                                     @endforeach
                                 </select>
+                                <small class="text-secondary d-block mt-1">Guru yang sudah menjadi wali kelas tidak dapat dipilih untuk kelas lain.</small>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold" for="class-description">Deskripsi</label>
@@ -259,6 +266,7 @@
             const formErrors = document.querySelector('[data-class-form-errors]');
             const submitButton = document.querySelector('[data-class-submit]');
             const idInput = document.querySelector('[data-class-id]');
+            const homeroomTeacherSelect = form?.elements.homeroom_teacher_id;
             const studentSearchInput = document.querySelector('[data-class-student-search]');
             const studentPickerItems = Array.from(document.querySelectorAll('[data-class-student-item]'));
             const studentCheckboxes = Array.from(document.querySelectorAll('[data-class-student-checkbox]'));
@@ -382,6 +390,29 @@
                 window.URL.revokeObjectURL(url);
             };
 
+            const updateHomeroomTeacherOptions = function (currentClassId = '') {
+                if (!homeroomTeacherSelect) {
+                    return;
+                }
+
+                Array.from(homeroomTeacherSelect.options).forEach(function (option) {
+                    if (!option.value) {
+                        return;
+                    }
+
+                    const homeroomClassId = option.dataset.homeroomClassId || '';
+                    const isUsedByOtherClass = homeroomClassId !== '' && String(homeroomClassId) !== String(currentClassId || '');
+
+                    option.disabled = isUsedByOtherClass;
+
+                    if (isUsedByOtherClass) {
+                        option.textContent = option.textContent.replace(/\s*\(tidak tersedia\)$/u, '') + ' (tidak tersedia)';
+                    } else {
+                        option.textContent = option.textContent.replace(/\s*\(tidak tersedia\)$/u, '');
+                    }
+                });
+            };
+
             const resetForm = function () {
                 if (!form) {
                     return;
@@ -394,6 +425,7 @@
                 submitButton.disabled = false;
                 formErrors.classList.add('d-none');
                 formErrors.innerHTML = '';
+                updateHomeroomTeacherOptions('');
                 studentCheckboxes.forEach(function (checkbox) {
                     checkbox.checked = false;
                 });
@@ -418,6 +450,7 @@
                 form.elements.name.value = schoolClass.name || '';
                 form.elements.level.value = schoolClass.level || '';
                 form.elements.academic_year.value = schoolClass.academic_year || '';
+                updateHomeroomTeacherOptions(schoolClass.id || '');
                 form.elements.homeroom_teacher_id.value = schoolClass.homeroom_teacher_id || '';
                 form.elements.description.value = schoolClass.description || '';
                 const selectedStudentIds = new Set((schoolClass.student_ids || []).map(function (value) {
@@ -499,17 +532,19 @@
             }
 
             exportAllButton?.addEventListener('click', function () {
-                window.location.href = '/admin/export/kelas';
+                window.location.href = '/admin/export/kelas/xls';
             });
 
             sectionExportButtons.forEach(function (button) {
                 button.addEventListener('click', function () {
                     const key = button.dataset.directoryExportSection;
-                    const sectionRows = rows.filter(function (row) {
-                        return row.dataset.sectionKey === key;
-                    });
-
-                    exportRows(sectionRows, 'data-kelas-' + key + '.csv');
+                    const section = directory.querySelector('[data-section-key="' + key + '"]');
+                    const level = section ? section.dataset.level : '';
+                    if (level) {
+                        window.location.href = '/admin/export/kelas/xls?level=' + encodeURIComponent(level);
+                    } else {
+                        window.location.href = '/admin/export/kelas/xls';
+                    }
                 });
             });
 

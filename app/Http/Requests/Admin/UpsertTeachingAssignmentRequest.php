@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin;
 
 use App\Models\TeachingAssignment;
+use App\Models\Teacher;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -31,7 +32,7 @@ class UpsertTeachingAssignmentRequest extends FormRequest
             'subject_id' => ['required', 'integer', 'exists:subjects,id'],
             'school_class_id' => ['required', 'integer', 'exists:school_classes,id'],
             'academic_year' => ['required', 'string', 'regex:/^\d{4}\/\d{4}$/'],
-            'day_of_week' => ['required', 'integer', 'between:1,7'],
+            'day_of_week' => ['required', 'integer', 'between:0,6'],
             'start_time' => ['required', 'date_format:H:i'],
             'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
             'room' => ['nullable', 'string', 'max:50'],
@@ -48,6 +49,15 @@ class UpsertTeachingAssignmentRequest extends FormRequest
 
             /** @var TeachingAssignment|null $teachingAssignment */
             $teachingAssignment = $this->route('teachingAssignment');
+
+            $teacher = Teacher::query()
+                ->with('subjects:id')
+                ->find($this->integer('teacher_id'));
+
+            if ($teacher !== null && $teacher->subjects->isNotEmpty() && !$teacher->subjects->contains('id', $this->integer('subject_id'))) {
+                $validator->errors()->add('subject_id', 'Mata pelajaran tidak termasuk daftar mapel yang dapat diajarkan guru ini.');
+                return;
+            }
 
             $overlapQuery = TeachingAssignment::query()
                 ->where('academic_year', $this->input('academic_year'))
@@ -73,6 +83,15 @@ class UpsertTeachingAssignmentRequest extends FormRequest
 
             if ($classConflict) {
                 $validator->errors()->add('school_class_id', 'Kelas sudah memiliki jadwal lain pada hari dan jam tersebut.');
+            }
+
+            $slotFilled = (clone $overlapQuery)
+                ->where('school_class_id', $this->integer('school_class_id'))
+                ->where('day_of_week', $this->integer('day_of_week'))
+                ->exists();
+
+            if ($slotFilled && !$classConflict) {
+                $validator->errors()->add('start_time', 'Kombinasi kelas, hari, dan jam sudah terisi.');
             }
         });
     }
