@@ -7,6 +7,7 @@ Project ini sudah disiapkan untuk deploy dari GitHub ke Railway.
 - `railway.json` memakai Railpack dan menjalankan `npm run build` agar asset Vite dibuat saat deploy.
 - `railway/init-app.sh` menjalankan migrasi, membuat storage link, dan membersihkan cache Laravel pada pre-deploy.
 - `config/database.php` menerima `DB_URL` dan juga fallback `DATABASE_URL`.
+- Healthcheck Railway diarahkan ke endpoint Laravel `/up`.
 - `Procfile` tetap tersedia sebagai fallback start command berbasis `php artisan serve`.
 
 ## Variables Railway
