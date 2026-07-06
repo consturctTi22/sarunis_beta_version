@@ -1,0 +1,173 @@
+@php
+    $recapSectionId = $recapSectionId ?? 'rekap-absensi';
+    $recapSectionLabel = $recapSectionLabel ?? 'Rekap Absensi Mapel';
+    $recapTitle = $recapTitle ?? 'Ringkasan Absensi Mapel';
+    $recapDescription = $recapDescription ?? 'Data absensi dari kelas yang diajar sebagai guru mapel.';
+    $recapExportBaseUrl = $recapExportBaseUrl ?? url('/guru-mapel/rekap-absensi');
+    $recapFilters = $recapFilters ?? ($attendanceFilters ?? []);
+    $exportQuery = request()->getQueryString();
+    $withExportQuery = fn (string $url): string => $exportQuery ? $url . '?' . $exportQuery : $url;
+    $recapExportXlsUrl = $recapExportXlsUrl ?? $recapExportBaseUrl . '/export/xls';
+    $recapExportCsvUrl = $recapExportCsvUrl ?? $recapExportBaseUrl . '/export/csv';
+    $recapExportPdfUrl = $recapExportPdfUrl ?? $recapExportBaseUrl . '/export/pdf';
+    $recapPrintUrl = $recapPrintUrl ?? $recapExportBaseUrl . '/print';
+@endphp
+
+<section class="portal-panel portal-teacher-recap" id="{{ $recapSectionId }}" data-dashboard-section data-section-label="{{ $recapSectionLabel }}">
+    <div class="portal-section-heading">
+        <div>
+            <h2>{{ $recapTitle }}</h2>
+            <p>{{ $recapDescription }} Data terakhir {{ $attendanceSummary['latest_date'] }} dengan persentase hadir {{ $attendanceSummary['present_rate'] }}%.</p>
+        </div>
+        <div class="portal-report-actions">
+            <a class="btn btn-outline-primary btn-sm" href="{{ $withExportQuery($recapExportXlsUrl) }}">Excel Mapel</a>
+            <a class="btn btn-outline-primary btn-sm" href="{{ $withExportQuery($recapExportCsvUrl) }}">CSV Mapel</a>
+            <a class="btn btn-outline-primary btn-sm" href="{{ $withExportQuery($recapExportPdfUrl) }}" target="_blank" rel="noopener">PDF Mapel</a>
+            <a class="btn btn-outline-primary btn-sm" href="{{ $withExportQuery($recapPrintUrl) }}" target="_blank" rel="noopener">Print</a>
+        </div>
+    </div>
+
+    <form class="portal-report-card portal-report-card--wide" method="GET" action="{{ url()->current() }}">
+        <div class="portal-report-card__header">
+            <h3>Filter Export Mapel</h3>
+            <span>{{ count($attendanceDetailRows) }} detail</span>
+        </div>
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label" for="{{ $recapSectionId }}-subject">Mapel</label>
+                <select class="form-control" id="{{ $recapSectionId }}-subject" name="subject_id">
+                    <option value="">Semua mapel</option>
+                    @foreach (($teacherExportSubjects ?? []) as $subjectOption)
+                        <option value="{{ $subjectOption['id'] }}" @selected((string) ($recapFilters['subject_id'] ?? '') === (string) $subjectOption['id'])>{{ $subjectOption['name'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="{{ $recapSectionId }}-class">Kelas Ajar</label>
+                <select class="form-control" id="{{ $recapSectionId }}-class" name="school_class_id">
+                    <option value="">Semua kelas ajar</option>
+                    @foreach (($teacherExportClasses ?? []) as $classOption)
+                        <option value="{{ $classOption['id'] }}" @selected((string) ($recapFilters['school_class_id'] ?? '') === (string) $classOption['id'])>{{ $classOption['name'] }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="{{ $recapSectionId }}-from">Dari</label>
+                <input class="form-control" id="{{ $recapSectionId }}-from" type="date" name="date_from" value="{{ $recapFilters['date_from'] ?? '' }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="{{ $recapSectionId }}-to">Sampai</label>
+                <input class="form-control" id="{{ $recapSectionId }}-to" type="date" name="date_to" value="{{ $recapFilters['date_to'] ?? '' }}">
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button class="btn btn-primary btn-sm" type="submit">Terapkan</button>
+                <a class="btn btn-outline-primary btn-sm" href="{{ url()->current() }}">Reset</a>
+            </div>
+        </div>
+    </form>
+
+    <div class="portal-teacher-recap__summary">
+        <article>
+            <span>Total Catatan</span>
+            <strong>{{ $attendanceSummary['total'] }}</strong>
+        </article>
+        <article>
+            <span>Hadir</span>
+            <strong>{{ $attendanceSummary['hadir'] }}</strong>
+        </article>
+        <article>
+            <span>Izin</span>
+            <strong>{{ $attendanceSummary['izin'] }}</strong>
+        </article>
+        <article>
+            <span>Sakit</span>
+            <strong>{{ $attendanceSummary['sakit'] }}</strong>
+        </article>
+        <article>
+            <span>Alpha</span>
+            <strong>{{ $attendanceSummary['alpha'] }}</strong>
+        </article>
+    </div>
+
+    <div class="portal-report-card portal-report-card--wide">
+        <div class="portal-report-card__header">
+            <h3>Rekap Per Mapel dan Kelas</h3>
+            <span>{{ count($attendanceRecapRows) }} jadwal</span>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table portal-table mb-0">
+                <thead>
+                    <tr>
+                        <th>Mapel</th>
+                        <th>Kelas</th>
+                        <th>Pertemuan</th>
+                        <th>Hadir</th>
+                        <th>Izin</th>
+                        <th>Sakit</th>
+                        <th>Alpha</th>
+                        <th>% Hadir</th>
+                        <th>Terakhir</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($attendanceRecapRows as $row)
+                        <tr data-search-item>
+                            <td>{{ $row['subject'] }}</td>
+                            <td>{{ $row['class_name'] }}</td>
+                            <td>{{ $row['dates_count'] }}</td>
+                            <td>{{ $row['hadir'] }}</td>
+                            <td>{{ $row['izin'] }}</td>
+                            <td>{{ $row['sakit'] }}</td>
+                            <td>{{ $row['alpha'] }}</td>
+                            <td><span class="portal-badge is-primary">{{ $row['present_rate'] }}%</span></td>
+                            <td>{{ $row['latest_date'] }}</td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="9" class="text-center text-muted py-4">Belum ada data absensi mapel.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="portal-report-card portal-report-card--wide">
+        <div class="portal-report-card__header">
+            <h3>Detail Catatan Siswa</h3>
+            <span>{{ count($attendanceDetailRows) }} baris</span>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table portal-table mb-0">
+                <thead>
+                    <tr>
+                        <th>Tanggal</th>
+                        <th>Mapel</th>
+                        <th>Kelas</th>
+                        <th>Siswa</th>
+                        <th>Status</th>
+                        <th>Catatan</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($attendanceDetailRows as $row)
+                        <tr data-search-item>
+                            <td>{{ $row['date'] }}</td>
+                            <td>{{ $row['subject'] }}</td>
+                            <td>{{ $row['class_name'] }}</td>
+                            <td>{{ $row['student'] }}</td>
+                            <td>{{ $row['status'] }}</td>
+                            <td>{{ $row['notes'] }}</td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">Belum ada detail absensi yang dapat ditampilkan.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>

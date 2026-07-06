@@ -1,0 +1,315 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\SchoolClass;
+use App\Models\Teacher;
+use App\Models\TeachingAssignment;
+use App\Services\ScheduleDisplayService;
+use App\Services\ScheduleGeneratorService;
+use App\Services\ScheduleOptimizerService;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+
+/**
+ * Controller untuk mengelola jadwal pelajaran
+ * 
+ * Endpoint:
+ * - GET    /schedule/generate-page          - Tampilkan form generate jadwal
+ * - POST   /schedule/generate                - Generate jadwal
+ * - GET    /schedule/class/{id}/{year}       - Tampilkan jadwal kelas
+ * - GET    /schedule/teacher/{id}/{year}     - Tampilkan jadwal guru
+ * - GET    /schedule/analyze/{year}          - Analisis jadwal
+ * - GET    /schedule/export/{classId}/{year}/{format} - Export jadwal
+ */
+class ScheduleController extends Controller
+{
+    public function __construct(
+        private ScheduleGeneratorService $scheduleGenerator,
+        private ScheduleOptimizerService $optimizer,
+        private ScheduleDisplayService $displayService
+    ) {}
+
+    /**
+     * Tampilkan halaman form generate jadwal
+     */
+    public function generatePage()
+    {
+        $academicYears = $this->getAvailableAcademicYears();
+        $classes = SchoolClass::all();
+
+        return view('schedule.generate', compact('academicYears', 'classes'));
+    }
+
+    /**
+     * Generate jadwal otomatis
+     */
+    public function generate(Request $request)
+    {
+        $validated = $request->validate([
+            'academic_year' => ['required', 'string', 'regex:/^\d{4}\/\d{4}$/'], // Format: 2025/2026
+            'school_class_id' => 'nullable|exists:school_classes,id',
+            'clear_existing' => 'boolean',
+            'validate_only' => 'boolean',
+        ]);
+
+        try {
+            $academicYear = $validated['academic_year'];
+            $schoolClassId = $validated['school_class_id'] ?? null;
+
+            // Validasi terlebih dahulu
+            $validation = $this->scheduleGenerator->validateBeforeGeneration($academicYear);
+
+            if (!$validation['is_valid']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validasi gagal',
+                    'errors' => $validation['errors'],
+                ], 422);
+            }
+
+            // Jika hanya validasi
+            if ($validated['validate_only'] ?? false) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Validasi berhasil',
+                    'warnings' => $validation['warnings'],
+                ]);
+            }
+
+            // Clear existing jika diminta
+            if ($validated['clear_existing'] ?? false) {
+                $this->scheduleGenerator->clearSchedule($academicYear, $schoolClassId);
+            }
+
+            // Generate jadwal
+            $result = $this->scheduleGenerator->generateSchedule($academicYear, $schoolClassId);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Jadwal berhasil dibuat',
+                'data' => $result,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Tampilkan jadwal kelas
+     */
+    public function showClassSchedule(int $classId, string $academicYear)
+    {
+        $class = SchoolClass::findOrFail($classId);
+        $schedule = $this->displayService->getClassScheduleTable($classId, $academicYear);
+        $teachers = Teacher::orderBy('name')->get();
+
+        if (request()->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'data' => $schedule,
+            ]);
+        }
+
+        return view('schedule.class-schedule', compact('class', 'schedule', 'academicYear', 'teachers'));
+    }
+
+    /**
+     * Tampilkan jadwal guru
+     */
+    public function showTeacherSchedule(int $teacherId, string $academicYear)
+    {
+        $teacher = Teacher::findOrFail($teacherId);
+        $schedule = $this->displayService->getTeacherScheduleTable($teacherId, $academicYear);
+
+        if (request()->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'data' => $schedule,
+            ]);
+        }
+
+        return view('schedule.teacher-schedule', compact('teacher', 'schedule', 'academicYear'));
+    }
+
+    /**
+     * Analisis jadwal dan tampilkan rekomendasi
+     */
+    public function analyze(string $academicYear)
+    {
+        try {
+            $analysis = $this->optimizer->generateScheduleReport($academicYear);
+
+            if (request()->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'data' => $analysis,
+                ]);
+            }
+
+            return view('schedule.analyze', compact('analysis', 'academicYear'));
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Get deteksi konflik guru
+     */
+    public function teacherConflicts(string $academicYear)
+    {
+        $conflicts = $this->optimizer->detectTeacherConflicts($academicYear);
+
+        return response()->json([
+            'success' => true,
+            'total_conflicts' => count($conflicts),
+            'conflicts' => $conflicts,
+        ]);
+    }
+
+    /**
+     * Get deteksi konflik ruangan
+     */
+    public function roomConflicts(string $academicYear)
+    {
+        $conflicts = $this->optimizer->detectRoomConflicts($academicYear);
+
+        return response()->json([
+            'success' => true,
+            'total_conflicts' => count($conflicts),
+            'conflicts' => $conflicts,
+        ]);
+    }
+
+    /**
+     * Get analisis beban kerja guru
+     */
+    public function teacherWorkload(string $academicYear)
+    {
+        $workloads = $this->optimizer->analyzeTeacherWorkload($academicYear);
+
+        return response()->json([
+            'success' => true,
+            'data' => $workloads,
+        ]);
+    }
+
+    /**
+     * Get analisis distribusi jadwal per hari
+     */
+    public function dailyDistribution(int $classId, string $academicYear)
+    {
+        $distribution = $this->optimizer->analyzeDailyDistribution($academicYear, $classId);
+
+        return response()->json([
+            'success' => true,
+            'data' => $distribution,
+        ]);
+    }
+
+    /**
+     * Export jadwal ke berbagai format
+     */
+    public function export(int $classId, string $academicYear, string $format = 'html')
+    {
+        $class = SchoolClass::findOrFail($classId);
+
+        $format = strtolower($format);
+
+        if ($format === 'html') {
+            $content = $this->displayService->exportToHTML($classId, $academicYear);
+            return response($content, 200)
+                ->header('Content-Type', 'text/html; charset=utf-8')
+                ->header('Content-Disposition', "attachment; filename=\"jadwal_{$class->name}_{$academicYear}.html\"");
+        } elseif ($format === 'csv') {
+            $content = $this->displayService->exportToCSV($classId, $academicYear);
+            return response($content, 200)
+                ->header('Content-Type', 'text/csv; charset=utf-8')
+                ->header('Content-Disposition', "attachment; filename=\"jadwal_{$class->name}_{$academicYear}.csv\"");
+        } elseif ($format === 'ics') {
+            $content = $this->displayService->generateICSCalendar($classId, $academicYear);
+            return response($content, 200)
+                ->header('Content-Type', 'text/calendar; charset=utf-8')
+                ->header('Content-Disposition', "attachment; filename=\"jadwal_{$class->name}_{$academicYear}.ics\"");
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'Format tidak didukung. Pilih: html, csv, ics',
+            ], 400);
+        }
+    }
+
+    /**
+     * List semua jadwal untuk tahun akademik
+     */
+    public function list(string $academicYear)
+    {
+        $schedules = TeachingAssignment::query()
+            ->with(['teacher', 'subject', 'schoolClass'])
+            ->where('academic_year', $academicYear)
+            ->orderBy('day_of_week')
+            ->orderBy('start_time')
+            ->paginate(50);
+
+        return response()->json([
+            'success' => true,
+            'data' => $schedules,
+        ]);
+    }
+
+    /**
+     * Get rekomendasi perbaikan jadwal
+     */
+    public function recommendations(string $academicYear)
+    {
+        $recommendations = $this->optimizer->getRecommendations($academicYear);
+
+        return response()->json([
+            'success' => true,
+            'recommendations' => $recommendations,
+        ]);
+    }
+
+    // ===== Helper Methods =====
+
+    private function getAvailableAcademicYears(): array
+    {
+        $currentYear = (int) date('Y');
+        $nextYear = $currentYear + 1;
+
+        // Build available years: include existing years from DB + current/next range
+        $years = [];
+
+        // Add years that already exist in school_classes table
+        $existingYears = SchoolClass::query()
+            ->select('academic_year')
+            ->distinct()
+            ->pluck('academic_year')
+            ->toArray();
+
+        foreach ($existingYears as $year) {
+            $years[$year] = str_replace('/', ' / ', $year);
+        }
+
+        // Add current and next academic year ranges (using slash format)
+        $currentRange = "{$currentYear}/{$nextYear}";
+        $nextRange = "{$nextYear}/" . ($nextYear + 1);
+
+        if (!isset($years[$currentRange])) {
+            $years[$currentRange] = "{$currentYear} / {$nextYear}";
+        }
+        if (!isset($years[$nextRange])) {
+            $years[$nextRange] = "{$nextYear} / " . ($nextYear + 1);
+        }
+
+        ksort($years);
+
+        return $years;
+    }
+}
