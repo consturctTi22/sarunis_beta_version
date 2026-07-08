@@ -10,6 +10,9 @@ use App\Services\TeachingAssignmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\View\View;
+use Illuminate\Support\Facades\DB;
+use App\Models\SubjectAttendance;
 
 class StudentPortalController extends Controller
 {
@@ -68,6 +71,117 @@ class StudentPortalController extends Controller
 
         return response()->json([
             'data' => $this->classAttendanceService->recapForStudent($student, $filters),
+        ]);
+    }
+
+    public function schedulePage(Request $request): View
+    {
+        $student = $this->studentFromRequest($request);
+        $schedules = $this->teachingAssignmentService->scheduleForStudent($student);
+
+        // Group by day 1 to 5 (Senin - Jumat)
+        $days = [
+            1 => 'Senin',
+            2 => 'Selasa',
+            3 => 'Rabu',
+            4 => 'Kamis',
+            5 => 'Jumat',
+        ];
+
+        $allScheduleRows = [];
+        foreach ($days as $dayNum => $dayName) {
+            $daySchedules = $schedules->filter(fn($s) => (int)$s->day_of_week === $dayNum)->values();
+            if ($daySchedules->isNotEmpty()) {
+                $items = $daySchedules->map(fn($assignment, $index) => [
+                    'lesson_period' => $index + 1,
+                    'time' => substr($assignment->start_time, 0, 5) . ' - ' . substr($assignment->end_time, 0, 5),
+                    'subject' => $assignment->subject?->name ?? '-',
+                    'teacher' => $assignment->teacher?->name ?? '-',
+                    'room' => $assignment->room ?? '-',
+                ])->all();
+
+                $allScheduleRows[] = [
+                    'day' => $dayName,
+                    'items' => $items,
+                ];
+            }
+        }
+
+        $menuSections = app(\App\Http\Controllers\PortalDashboardController::class)->menuForPortalPage('siswa', 'Jadwal Mata Pelajaran');
+
+        return view('dashboard.student-schedule', [
+            'pageTitle' => 'Jadwal Mata Pelajaran',
+            'portalKey' => 'siswa',
+            'menuSections' => $menuSections,
+            'allScheduleRows' => $allScheduleRows,
+        ]);
+    }
+
+    public function attendancePage(Request $request): View
+    {
+        $student = $this->studentFromRequest($request);
+        
+        // Fetch all subject attendances for this student
+        $attendances = SubjectAttendance::query()
+            ->with(['teachingAssignment.subject', 'teachingAssignment.teacher'])
+            ->where('student_id', $student->id)
+            ->get();
+
+        // Group by teaching assignment to get per-subject summary
+        $recapRows = $attendances->groupBy('teaching_assignment_id')->map(function ($subjectAttendances, $assignmentId) {
+            $assignment = $subjectAttendances->first()->teachingAssignment;
+            $total = $subjectAttendances->count();
+            $alpha = $subjectAttendances->where('status', 'alpha')->count();
+            $izin = $subjectAttendances->where('status', 'izin')->count();
+            $sakit = $subjectAttendances->where('status', 'sakit')->count();
+            $hadir = $subjectAttendances->where('status', 'hadir')->count();
+            $presentase = $total > 0 ? round(($hadir / $total) * 100) : 0;
+
+            return [
+                'assignment_id' => $assignmentId,
+                'subject_name' => $assignment->subject?->name ?? '-',
+                'teacher_name' => $assignment->teacher?->name ?? '-',
+                'alpha' => $alpha,
+                'izin' => $izin,
+                'sakit' => $sakit,
+                'hadir' => $hadir,
+                'total' => $total,
+                'presentase' => $presentase,
+            ];
+        })->values()->all();
+
+        $menuSections = app(\App\Http\Controllers\PortalDashboardController::class)->menuForPortalPage('siswa', 'Daftar Hadir');
+
+        return view('dashboard.student-attendance', [
+            'pageTitle' => 'Daftar Hadir',
+            'portalKey' => 'siswa',
+            'menuSections' => $menuSections,
+            'recapRows' => $recapRows,
+        ]);
+    }
+
+    public function attendanceDetailPage(Request $request, int $assignmentId): View
+    {
+        $student = $this->studentFromRequest($request);
+
+        $attendances = SubjectAttendance::query()
+            ->with(['teachingAssignment.subject', 'teachingAssignment.teacher'])
+            ->where('student_id', $student->id)
+            ->where('teaching_assignment_id', $assignmentId)
+            ->orderByDesc('attendance_date')
+            ->get();
+
+        $assignment = $attendances->first()?->teachingAssignment 
+            ?? \App\Models\TeachingAssignment::with(['subject', 'teacher'])->findOrFail($assignmentId);
+
+        $menuSections = app(\App\Http\Controllers\PortalDashboardController::class)->menuForPortalPage('siswa', 'Daftar Hadir');
+
+        return view('dashboard.student-attendance-detail', [
+            'pageTitle' => 'Detail Daftar Hadir: ' . ($assignment->subject?->name ?? '-'),
+            'portalKey' => 'siswa',
+            'menuSections' => $menuSections,
+            'assignment' => $assignment,
+            'attendances' => $attendances,
         ]);
     }
 }

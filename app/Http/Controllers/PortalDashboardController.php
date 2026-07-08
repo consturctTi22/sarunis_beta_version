@@ -1079,9 +1079,38 @@ class PortalDashboardController extends Controller
     {
         $data = $this->buildTeacherDashboard($request, $this->teacherPayload());
 
+        $user = $this->dashboardUser($request);
+        $isAdmin = $user->hasRole('admin');
+        $allSchedules = $isAdmin
+            ? $this->teachingAssignmentService->schedules()
+            : $this->teachingAssignmentService->scheduleForTeacher($this->teacherFromRequest($request));
+
+        $dayNames = config('schedule.day_names', []);
+        $allScheduleRows = $allSchedules
+            ->sortBy([['day_of_week', 'asc'], ['start_time', 'asc']])
+            ->groupBy('day_of_week')
+            ->map(function (Collection $daySchedules, int $day) use ($dayNames): array {
+                return [
+                    'day' => $dayNames[$day - 1] ?? 'Hari ' . $day,
+                    'day_of_week' => $day,
+                    'items' => $daySchedules->values()->map(fn(TeachingAssignment $assignment, int $index): array => [
+                        'lesson_period' => $index + 1,
+                        'time' => $this->timeRange($assignment->start_time, $assignment->end_time),
+                        'subject' => $assignment->subject?->name ?? '-',
+                        'class_name' => $assignment->schoolClass?->name ?? '-',
+                        'room' => $assignment->room ?? '-',
+                        'status' => $this->scheduleStatus($assignment),
+                    ])->all(),
+                ];
+            })
+            ->sortBy('day_of_week')
+            ->values()
+            ->all();
+
         return view('dashboard.teacher-schedule', array_merge($data, [
             'pageTitle' => 'Jadwal Mengajar',
             'menuSections' => $this->menuForPortalPage('guru-mapel', 'Jadwal Mengajar'),
+            'allScheduleRows' => $allScheduleRows,
         ]));
     }
 
@@ -1797,9 +1826,10 @@ class PortalDashboardController extends Controller
                 ['label' => 'Jadwal Aktif', 'value' => $schedules->count()],
                 ['label' => 'Siswa Terkait', 'value' => $students->count()],
             ],
-            'scheduleRows' => $scheduleRows->map(fn(TeachingAssignment $assignment): array => [
+            'scheduleRows' => $scheduleRows->values()->map(fn(TeachingAssignment $assignment, int $index): array => [
                 'id' => $assignment->id,
                 'school_class_id' => $assignment->school_class_id,
+                'lesson_period' => $index + 1,
                 'time' => $this->timeRange($assignment->start_time, $assignment->end_time),
                 'subject' => $assignment->subject?->name ?? '-',
                 'class_name' => $assignment->schoolClass?->name ?? '-',
@@ -2359,7 +2389,8 @@ class PortalDashboardController extends Controller
                 'asset' => 'school',
             ],
             'summary' => $summary,
-            'scheduleRows' => $scheduleRows->map(fn(TeachingAssignment $assignment): array => [
+            'scheduleRows' => $scheduleRows->values()->map(fn(TeachingAssignment $assignment, int $index): array => [
+                'lesson_period' => $index + 1,
                 'time' => $this->timeRange($assignment->start_time, $assignment->end_time),
                 'subject' => $assignment->subject?->name ?? '-',
                 'teacher' => $assignment->teacher?->name ?? '-',
@@ -2428,9 +2459,9 @@ class PortalDashboardController extends Controller
     /**
      * @return array<int, array{title:string,items:array<int, array{label:string,icon:string,href:string,active:bool}>}>
      */
-    protected function menuFor(string $portalKey): array
+    public function menuFor(string $portalKey): array
     {
-        return match ($portalKey) {
+        $menu = match ($portalKey) {
             'admin' => [
                 [
                     'title' => 'Utama',
@@ -2510,8 +2541,8 @@ class PortalDashboardController extends Controller
                     'title' => 'Siswa',
                     'items' => [
                         ['label' => 'Beranda', 'icon' => 'home', 'href' => '#beranda', 'active' => true],
-                        ['label' => 'Jadwal Sekolah', 'icon' => 'schedule', 'href' => '#jadwal-sekolah', 'active' => false],
-                        ['label' => 'Daftar Hadir', 'icon' => 'attendance', 'href' => '#absensi-siswa', 'active' => false],
+                        ['label' => 'Jadwal Mata Pelajaran', 'icon' => 'schedule', 'href' => url('/siswa/jadwal-mata-pelajaran'), 'active' => false],
+                        ['label' => 'Daftar Hadir', 'icon' => 'attendance', 'href' => url('/siswa/daftar-hadir'), 'active' => false],
                     ],
                 ],
                 [
@@ -2522,12 +2553,21 @@ class PortalDashboardController extends Controller
                 ],
             ],
         };
+
+        $menu[] = [
+            'title' => 'Pengaturan',
+            'items' => [
+                ['label' => 'Profil Saya', 'icon' => 'user', 'href' => url('/profil'), 'active' => false],
+            ],
+        ];
+
+        return $menu;
     }
 
     /**
      * @return array<int, array{title:string,items:array<int, array{label:string,icon:string,href:string,active:bool}>}>
      */
-    protected function menuForPortalPage(string $portalKey, string $activeLabel): array
+    public function menuForPortalPage(string $portalKey, string $activeLabel): array
     {
         $dashboardUrl = url(AuthService::portalMap()[$portalKey]['dashboard']);
 

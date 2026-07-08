@@ -15,6 +15,14 @@
         >
         <style>
             {!! file_get_contents(resource_path('css/app.css')) !!}
+            .portal-tooltip-sm {
+                --bs-tooltip-font-size: 0.75rem;
+                --bs-tooltip-padding-x: 0.5rem;
+                --bs-tooltip-padding-y: 0.25rem;
+            }
+            body:not(.portal-sidebar-collapsed) .portal-dashboard-sidebar .tooltip {
+                display: none !important;
+            }
         </style>
     </head>
     <body class="portal-dashboard-body">
@@ -100,6 +108,9 @@
 
                 const enhanceButtons = function (root) {
                     root.querySelectorAll('[aria-label]').forEach(function (element) {
+                        // Skip adding title to structural elements like aside or nav to prevent giant tooltips
+                        if (element.tagName === 'ASIDE' || element.tagName === 'NAV') return;
+                        
                         if (!element.getAttribute('title')) {
                             element.setAttribute('title', element.getAttribute('aria-label'));
                         }
@@ -109,7 +120,21 @@
                         root.querySelectorAll('[title]').forEach(function (element) {
                             if (element.dataset.tooltipBound === '1') return;
                             element.dataset.tooltipBound = '1';
-                            new window.bootstrap.Tooltip(element);
+                            
+                            let placement = 'auto';
+                            let container = false;
+                            
+                            const sidebar = element.closest('.portal-dashboard-sidebar');
+                            if (sidebar) {
+                                placement = 'right';
+                                container = sidebar;
+                            }
+                            
+                            new window.bootstrap.Tooltip(element, {
+                                placement: placement,
+                                container: container,
+                                customClass: 'portal-tooltip-sm'
+                            });
                         });
                     }
                 };

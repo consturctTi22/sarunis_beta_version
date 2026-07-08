@@ -338,6 +338,63 @@
                     </div>
                 </section>
                 @elseif ($portalKey === 'guru-mapel')
+                <section class="portal-panel portal-schedule-card" id="jadwal-mengajar" data-dashboard-section data-section-label="Jadwal Mengajar">
+                    <div class="portal-section-heading">
+                        <div>
+                            <h2>Jadwal Mengajar Hari Ini</h2>
+                            <p>Ringkasan jadwal yang perlu dipantau pada sesi aktif.</p>
+                        </div>
+                    </div>
+
+                    <div class="portal-schedule-list">
+                        @forelse ($scheduleRows as $row)
+                        <div class="portal-schedule-item portal-schedule-item--teacher" data-search-item>
+                            <span class="portal-chip portal-chip--time">{{ $row['time'] }}</span>
+                            <span class="portal-badge is-primary">Jam Ke-{{ $row['lesson_period'] }}</span>
+                            <span class="portal-chip">{{ $row['subject'] }}</span>
+                            <span class="portal-chip">{{ $row['class_name'] }}</span>
+                            <span class="portal-chip">{{ $row['room'] }}</span>
+                            <span class="portal-badge is-{{ $row['status']['tone'] }}">{{ $row['status']['label'] }}</span>
+                        </div>
+                        @empty
+                        <div class="text-muted">Belum ada jadwal yang bisa ditampilkan.</div>
+                        @endforelse
+                    </div>
+                </section>
+
+                <section class="portal-panel portal-workbench-card" id="absensi-siswa" data-dashboard-section data-section-label="Presensi Belum Diisi">
+                    <div class="portal-section-heading">
+                        <div>
+                            <h2>Presensi Belum Diisi</h2>
+                            <p>Pilih jadwal, cek daftar siswa, lalu simpan status kehadiran.</p>
+                        </div>
+                    </div>
+
+                    <form class="portal-attendance-form" data-subject-attendance-form>
+                        <div class="portal-form-grid">
+                            <label>
+                                <span>Jadwal</span>
+                                <select class="form-select" data-assignment-select required>
+                                    @forelse ($scheduleRows as $row)
+                                    <option value="{{ $row['id'] }}" data-class-id="{{ $row['school_class_id'] }}">{{ $row['time'] }} | {{ $row['subject'] }} | {{ $row['class_name'] }}</option>
+                                    @empty
+                                    <option value="">Belum ada jadwal</option>
+                                    @endforelse
+                                </select>
+                            </label>
+                            <label>
+                                <span>Tanggal</span>
+                                <input class="form-control" type="date" value="{{ now()->toDateString() }}" data-attendance-date required>
+                            </label>
+                        </div>
+
+                        <div class="portal-attendance-roster" data-attendance-students></div>
+                        <div class="portal-form-feedback d-none" data-attendance-feedback></div>
+
+                        <button class="btn btn-primary portal-form-submit" type="submit">Simpan Absensi Mapel</button>
+                    </form>
+                </section>
+
                 <section class="portal-overview-band" data-dashboard-section data-section-label="Ringkasan Guru Mapel">
                     @foreach ($summary as $item)
                     <article class="portal-panel portal-summary-card {{ $loop->first ? 'has-anchor' : '' }}" @if ($loop->first) id="data-siswa" @endif data-search-item>
@@ -376,63 +433,6 @@
                     </div>
                 </section>
 
-                @if (false)
-                <section class="portal-panel portal-schedule-card" id="jadwal-mengajar" data-dashboard-section data-section-label="Jadwal Mengajar">
-                    <div class="portal-section-heading">
-                        <div>
-                            <h2>Jadwal Mengajar Hari Ini</h2>
-                            <p>Ringkasan jadwal yang perlu dipantau pada sesi aktif.</p>
-                        </div>
-                    </div>
-
-                    <div class="portal-schedule-list">
-                        @forelse ($scheduleRows as $row)
-                        <div class="portal-schedule-item portal-schedule-item--teacher" data-search-item>
-                            <span class="portal-chip portal-chip--time">{{ $row['time'] }}</span>
-                            <span class="portal-chip">{{ $row['subject'] }}</span>
-                            <span class="portal-chip">{{ $row['class_name'] }}</span>
-                            <span class="portal-chip">{{ $row['room'] }}</span>
-                            <span class="portal-badge is-{{ $row['status']['tone'] }}">{{ $row['status']['label'] }}</span>
-                        </div>
-                        @empty
-                        <div class="text-muted">Belum ada jadwal yang bisa ditampilkan.</div>
-                        @endforelse
-                    </div>
-                </section>
-
-                <section class="portal-panel portal-workbench-card" id="absensi-siswa" data-dashboard-section data-section-label="Isi Absensi Mapel">
-                    <div class="portal-section-heading">
-                        <div>
-                            <h2>Isi Absensi Mapel</h2>
-                            <p>Pilih jadwal, cek daftar siswa, lalu simpan status kehadiran.</p>
-                        </div>
-                    </div>
-
-                    <form class="portal-attendance-form" data-subject-attendance-form>
-                        <div class="portal-form-grid">
-                            <label>
-                                <span>Jadwal</span>
-                                <select class="form-select" data-assignment-select required>
-                                    @forelse ($scheduleRows as $row)
-                                    <option value="{{ $row['id'] }}" data-class-id="{{ $row['school_class_id'] }}">{{ $row['time'] }} | {{ $row['subject'] }} | {{ $row['class_name'] }}</option>
-                                    @empty
-                                    <option value="">Belum ada jadwal</option>
-                                    @endforelse
-                                </select>
-                            </label>
-                            <label>
-                                <span>Tanggal</span>
-                                <input class="form-control" type="date" value="{{ now()->toDateString() }}" data-attendance-date required>
-                            </label>
-                        </div>
-
-                        <div class="portal-attendance-roster" data-attendance-students></div>
-                        <div class="portal-form-feedback d-none" data-attendance-feedback></div>
-
-                        <button class="btn btn-primary portal-form-submit" type="submit">Simpan Absensi Mapel</button>
-                    </form>
-                </section>
-
                 <section class="portal-metric-grid" id="rekap-absensi" data-dashboard-section data-section-label="Rekap Absensi">
                     @forelse ($attendanceCards as $card)
                     <article class="portal-panel portal-metric-card" data-search-item>
@@ -461,7 +461,7 @@
                     </article>
                     @endforelse
                 </section>
-                @endif
+
                 @elseif ($portalKey === 'walikelas')
                 <section class="portal-overview-band" data-dashboard-section data-section-label="Ringkasan Wali Kelas">
                     @foreach ($summary as $item)
@@ -542,7 +542,7 @@
                     </div>
                 </section>
 
-                @if (false)
+
                 <section class="portal-panel portal-workbench-card portal-teacher-attendance-card" id="absensi-kelas" data-dashboard-section data-section-label="Isi Absensi Kelas">
                     <div class="portal-section-heading portal-teacher-attendance-card__head">
                         <div>
@@ -734,7 +734,7 @@
                         @endif
                     </div>
                 </section>
-                @endif
+
                 @elseif ($portalKey === 'orang-tua')
                 @forelse ($children as $child)
                 <section class="portal-panel mb-6" id="anak-{{ $child['id'] }}" data-dashboard-section data-section-label="Anak: {{ $child['name'] }}">
@@ -815,16 +815,6 @@
                 @endforelse
 
                 @else
-                <section class="portal-overview-band" data-dashboard-section data-section-label="Ringkasan Siswa">
-                    @foreach ($summary as $item)
-                    <article class="portal-panel portal-summary-card" data-search-item>
-                        <strong>{{ $item['value'] }}</strong>
-                        <span>{{ $item['label'] }}</span>
-                        <small>{{ $item['meta'] }}</small>
-                    </article>
-                    @endforeach
-                </section>
-
                 <section class="portal-panel portal-table-card" id="jadwal-sekolah" data-dashboard-section data-section-label="Jadwal Sekolah">
                     <div class="portal-section-heading">
                         <div>
@@ -837,7 +827,8 @@
                         <table class="table portal-table portal-table--student mb-0">
                             <thead>
                                 <tr>
-                                    <th>Jam</th>
+                                    <th>Jam Ke-</th>
+                                    <th>Jam Mapel</th>
                                     <th>Mapel</th>
                                     <th>Guru</th>
                                     <th>Status</th>
@@ -846,6 +837,7 @@
                             <tbody>
                                 @forelse ($scheduleRows as $row)
                                 <tr data-search-item>
+                                    <td><span class="portal-badge is-primary">{{ $row['lesson_period'] }}</span></td>
                                     <td>{{ $row['time'] }}</td>
                                     <td>{{ $row['subject'] }}</td>
                                     <td>{{ $row['teacher'] }}</td>
@@ -853,12 +845,22 @@
                                 </tr>
                                 @empty
                                 <tr>
-                                    <td colspan="4" class="text-center text-muted py-4">Belum ada jadwal untuk ditampilkan.</td>
+                                    <td colspan="5" class="text-center text-muted py-4">Belum ada jadwal untuk ditampilkan.</td>
                                 </tr>
                                 @endforelse
                             </tbody>
                         </table>
                     </div>
+                </section>
+
+                <section class="portal-overview-band" data-dashboard-section data-section-label="Ringkasan Siswa">
+                    @foreach ($summary as $item)
+                    <article class="portal-panel portal-summary-card" data-search-item>
+                        <strong>{{ $item['value'] }}</strong>
+                        <span>{{ $item['label'] }}</span>
+                        <small>{{ $item['meta'] }}</small>
+                    </article>
+                    @endforeach
                 </section>
 
                 <section class="portal-attendance-feed" id="absensi-siswa" data-dashboard-section data-section-label="Absensi Siswa">
@@ -917,9 +919,9 @@
                                 <p>{{ $profile['role'] }}</p>
                             </div>
 
-                            <button class="portal-round-action portal-round-action--light" type="button" aria-label="Tampilkan atau sembunyikan detail profil" data-profile-toggle>
+                            <a href="{{ route('profile.edit') }}" class="portal-round-action portal-round-action--light" aria-label="Ubah profil">
                                 @include('dashboard.partials.icon', ['name' => 'edit'])
-                            </button>
+                            </a>
                         </div>
 
                         @if ($profile['photo_url'])

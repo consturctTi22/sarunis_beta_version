@@ -55,6 +55,9 @@ Route::post('/login/{portal}', [AuthController::class, 'portalLogin'])->middlewa
 Route::middleware('auth')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
+    
+    Route::get('/profil', [\App\Http\Controllers\ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profil', [\App\Http\Controllers\ProfileController::class, 'update'])->name('profile.update');
 });
 
 Route::prefix('admin')->middleware('role:admin')->group(function () {
@@ -156,8 +159,9 @@ Route::prefix('orang-tua')->middleware('role:orang_tua')->group(function () {
 Route::prefix('siswa')->middleware('role:siswa')->group(function () {
     Route::get('/dashboard', [PortalDashboardController::class, 'student']);
 
-    Route::get('/jadwal-sekolah', [StudentPortalController::class, 'schedule']);
-    Route::get('/daftar-hadir-kelas', [StudentPortalController::class, 'classAttendance']);
+    Route::get('/jadwal-mata-pelajaran', [StudentPortalController::class, 'schedulePage']);
+    Route::get('/daftar-hadir', [StudentPortalController::class, 'attendancePage']);
+    Route::get('/daftar-hadir/{assignmentId}', [StudentPortalController::class, 'attendanceDetailPage']);
     Route::get('/kalender-akademik', [AcademicCalendarPortalController::class, 'index']);
 });
 
